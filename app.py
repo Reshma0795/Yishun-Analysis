@@ -332,4 +332,5 @@ def render_page(pathname):
 # Run App
 # ------------------------------------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run_server(debug=True)
+
