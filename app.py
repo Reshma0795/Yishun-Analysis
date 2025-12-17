@@ -3,6 +3,7 @@ from dash import html, dcc
 from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 import pandas as pd  # <-- needed to load your dataset
+from dash import Dash
 
 from logic.functional_assessment import add_FA_column, FA_layout
 from logic.nursing_needs import add_nursing_column, Nursing_layout
