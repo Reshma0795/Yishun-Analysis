@@ -4,7 +4,7 @@ from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 import pandas as pd  # <-- needed to load your dataset
 from dash import Dash
-
+import os
 from logic.functional_assessment import add_FA_column, FA_layout
 from logic.nursing_needs import add_nursing_column, Nursing_layout
 from logic.rehab_needs import add_rehab_column, Rehab_layout
@@ -23,7 +23,8 @@ from logic.organization_care import add_organization_of_care_column, Organizatio
 # ------------------------------------------------
 # Load data ONCE (global)
 # ------------------------------------------------
-df = pd.read_excel("data/Yishun_Dataset.xlsx", sheet_name="Yishun_Dataset")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+df = pd.read_excel(os.path.join(BASE_DIR, "data", "Yishun_Dataset.xlsx"), sheet_name="Yishun_Dataset")
 df = add_FA_column(df)  # this will add the Functional_Assessment column
 df = add_nursing_column(df)
 df = add_rehab_column(df)
@@ -40,6 +41,8 @@ df = add_organization_of_care_column(df)
 # App setup
 # ------------------------------------------------
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+server = app.server
+
 app.title = "Yishun Dashboard"
 
 # ------------------------------------------------
@@ -332,8 +335,6 @@ def render_page(pathname):
 # ------------------------------------------------
 # Run App
 # ------------------------------------------------
-app = Dash(__name__)
-server = app.server
 
 if __name__ == "__main__":
     app.run(debug=True)
