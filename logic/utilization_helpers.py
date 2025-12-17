@@ -79,11 +79,6 @@ def gp_visits_by_cf_group(
     bin_order=("0", "1–2", "3–5", "6+"),
     title="Q78 (Private GP visits) by CF",
 ):
-    """
-    Returns:
-      counts_df: long-form counts
-      fig: grouped bar chart (NOT stacked)
-    """
     if cf_col not in df.columns or visits_bin_col not in df.columns:
         empty = pd.DataFrame(columns=[cf_col, "GP Visits Bin", "Count"])
         fig = px.bar(empty, x=cf_col, y="Count", title=f"{title} (No data)")
@@ -95,6 +90,9 @@ def gp_visits_by_cf_group(
         fig = px.bar(empty, x=cf_col, y="Count", title=f"{title} (No data)")
         return empty, fig
 
+    # -----------------------------
+    # 1️⃣ COUNT DATA
+    # -----------------------------
     counts = (
         tmp.groupby([cf_col, visits_bin_col])
         .size()
@@ -102,34 +100,105 @@ def gp_visits_by_cf_group(
         .rename(columns={visits_bin_col: "GP Visits Bin"})
     )
 
-    # enforce nice ordering
+    # Ordering
     if cf_order is not None:
-        counts[cf_col] = pd.Categorical(counts[cf_col], categories=cf_order, ordered=True)
+        counts[cf_col] = pd.Categorical(
+            counts[cf_col], categories=cf_order, ordered=True
+        )
 
     counts["GP Visits Bin"] = pd.Categorical(
         counts["GP Visits Bin"], categories=list(bin_order), ordered=True
     )
 
+    # -----------------------------
+    # 2️⃣ PERCENT CALCULATION  ✅ THIS IS WHERE IT GOES
+    # -----------------------------
+    counts["Total_CF"] = counts.groupby(cf_col)["Count"].transform("sum")
+    counts["Percent"] = (counts["Count"] / counts["Total_CF"]) * 100
+
+    # -----------------------------
+    # 3️⃣ PLOT
+    # -----------------------------
     fig = px.bar(
         counts,
         x=cf_col,
-        y="Count",
+        y="Percent",
         color="GP Visits Bin",
-        barmode="group",      # KEY: grouped bars, not stacked
-        text="Count",
-        title=title,
+        barmode="group",
+        text=counts.apply(
+            lambda r: f"{r['Percent']:.1f}%\n(n={r['Count']})",
+            axis=1,
+        ),
+    )
+    fig.update_traces(
+    textfont=dict(
+        size=13,          # 🔼 increase text size
+        color="white",    # good contrast
+        family="Inter, Arial"
+    ),
+    insidetextanchor="middle",
+)
+
+    # -----------------------------
+    # 4️⃣ STYLING  ✅ THIS IS WHERE IT GOES
+    # -----------------------------
+    fig.update_traces(
+        textposition="inside",
+        textfont=dict(size=11, color="white"),
+        insidetextanchor="middle",
+        cliponaxis=False,
     )
 
-    # styling to look less “traditional”
-    fig.update_traces(textposition="outside", cliponaxis=False)
     fig.update_layout(
-        bargap=0.45,
-        bargroupgap=0.18,
-        title_x=0.02,
-        legend_title_text="GP Visits",
-        margin=dict(l=40, r=20, t=60, b=40),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+
+        legend=dict(
+            title_text="Visits",
+            font=dict(size=11),
+            yanchor="top",
+            y=0.98,
+            xanchor="right",
+            x=0.98,
+            bgcolor="rgba(255,255,255,0.85)",
+            bordercolor="rgba(0,0,0,0.1)",
+            borderwidth=1,
+        ),
+
+        yaxis=dict(
+            title="Percent (%)",
+            ticksuffix="%",
+            showgrid=True,
+            gridcolor="rgba(0,0,0,0.08)",
+            zeroline=False,
+        ),
+        xaxis=dict(
+            title=cf_col,
+            showgrid=False,
+        ),
+
+        bargap=0.15,
+        bargroupgap=0.05,
+        margin=dict(l=50, r=30, t=70, b=50),
+
+        title=dict(
+            x=0.02,
+            font=dict(size=15, weight=600),
+        ),
     )
-    fig.update_xaxes(showgrid=False)
-    fig.update_yaxes(showgrid=True, zeroline=False)
+
+    fig.update_layout(
+    legend=dict(
+        orientation="h",
+        yanchor="top",
+        y=-0.25,          # ⬇ move below plot
+        xanchor="center",
+        x=0.5,
+        font=dict(size=11),
+        title=None,
+    ),
+    margin=dict(b=90),   # give space for legend
+)
 
     return counts, fig
+

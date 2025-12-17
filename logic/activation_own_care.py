@@ -5,11 +5,12 @@ from logic.activation_helper import binary_question_group_table
 from logic.mapping_helpers import build_mapping_table
 import dash_bootstrap_components as dbc
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.question_texts import HEALTHCARE_UTILIZATION_QUESTIONS
-
-
+from logic.cf_matrix_tables import build_cf_matrix_pct_n_table
+from logic.utilization import build_cf_x_utilization_binned_tables_per_question
+from logic.ui_helpers import chart_card
 # --------------------------------------------
 # Columns for Activation in Own Care
 # --------------------------------------------
@@ -52,7 +53,6 @@ def compute_activation_category(row):
 def add_activation_column(df):
     df["Activation_Care"] = df.apply(compute_activation_category, axis=1)
     return df
-
 
 # --------------------------------------------
 # Layout Page for Dash
@@ -157,7 +157,7 @@ def Activation_layout(df):
 
     mapping_table = build_mapping_table(mapping_rows, title="CF E - Activation in Own Care")
 
-        # ------------------------------------------------------------
+    # ------------------------------------------------------------
     # Demographics + CF distribution (Activation_Care 0/1/2)
     # ------------------------------------------------------------
     if "Activation_Care" not in df.columns:
@@ -185,33 +185,62 @@ def Activation_layout(df):
     gender_order = ["Male", "Female"]
     eth_order = ["Chinese", "Malay", "Indian", "Others"]
 
-    age_counts, age_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="Activation_CF_Value",
+    age_counts, age_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="Activation_CF_Value",
         group_col="Age_Bin",
         group_order=age_order,
+        cf_order=[0, 1, 2],
         title="Activation in Own Care: Distribution by Age Bin (0/1/2)",
-        cf_label="Activation CF Level",
+        legend_title="Age Bin",
     )
 
-    gender_counts, gender_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="Activation_CF_Value",
+    gender_counts, gender_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="Activation_CF_Value",
         group_col="Gender_Label",
         group_order=gender_order,
+        cf_order=[0, 1, 2],
         title="Activation in Own Care: Distribution by Gender (0/1/2)",
-        cf_label="Activation CF Level",
+        legend_title="Gender",
     )
 
-    eth_counts, eth_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="Activation_CF_Value",
+    eth_counts, eth_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="Activation_CF_Value",
         group_col="Ethnicity_Label",
         group_order=eth_order,
+        cf_order=[0, 1, 2],
         title="Activation in Own Care: Distribution by Ethnicity (0/1/2)",
-        cf_label="Activation CF Level",
+        legend_title="Ethnicity",
     )
 
+    activation_in_own_care_matrix = build_cf_matrix_pct_n_table(
+        df_demo=df_demo,
+        cf_col="Activation_Care",
+        category_order=[0, 1, 2],
+        category_labels={
+            0: "0: ready, understands and interested in treatment; active cooperation and participative",
+            1: "1: unsure but willing to cooperate, can be expected to provide at least a moderate level of self-care",
+            2: "2: major disconnect, unaware/ no insight, may be defiant and can't be expected to provide even a modest level of self-care",
+        },
+        title="Complicating Factor: Activation in Own Care (%, n)",
+    )
+
+    util_tables = build_cf_x_utilization_binned_tables_per_question(
+        df_demo=df_demo,
+        cf_col="Activation_Care",
+        category_order=[0, 1, 2],
+        category_labels={
+            0: "0: ready, understands and interested in treatment; active cooperation and participative",
+            1: "1: unsure but willing to cooperate, can be expected to provide at least a moderate level of self-care",
+            2: "2: major disconnect, unaware/ no insight, may be defiant and can't be expected to provide even a modest level of self-care",
+        },
+        util_qcodes=["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"],
+        util_question_meta=HEALTHCARE_UTILIZATION_QUESTIONS,
+        title_prefix="CF E (Activation in Own Care) × Healthcare Utilization (0 / 1–2 / 3–5 / 6+)",
+        show_pct=True,   # or False if you want only counts
+    )
     # ------------------------------------------------------------
     # Healthcare utilization: cross with Activation_Care (0/1/2)
     # ------------------------------------------------------------
@@ -250,9 +279,15 @@ def Activation_layout(df):
         ),
         #html.H4("Distribution Chart"),
         #dcc.Graph(figure=fig),
+
+        html.Hr(),
+        activation_in_own_care_matrix,
+        html.Br(),
+        html.Hr(),
+        util_tables,
+        html.Br(),
         html.Hr(),
         html.H3("Distribution of # of CFs by Demographics (Activation in Own Care)"),
-        html.Hr(),
         dbc.Card(
             dbc.CardBody(dcc.Graph(figure=age_fig, config={"displayModeBar": False})),
             style={
@@ -291,13 +326,63 @@ def Activation_layout(df):
         html.Hr(),
         html.H3("Distribution of # of CFs by Utilization (Activation in Own Care)"),
         html.Hr(),
-        dcc.Graph(figure=util_figs["Q78"]),
-        dcc.Graph(figure=util_figs["Q85"]),
-        dcc.Graph(figure=util_figs["Q91"]),
-        dcc.Graph(figure=util_figs["Q93"]),
-        dcc.Graph(figure=util_figs["Q96"]),
-        dcc.Graph(figure=util_figs["Q103"]),
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q78"],
+                        title="Q78 – Private General Practitioner (GP)",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q85"],
+                        title="Q85 – Polyclinic doctor visits",
+                    ),
+                    md=6,
+                ),
+            ],
+            className="mb-4",
+        ),
 
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q91"],
+                        title="Q91 – Specialist Outpatient Clinic (SOC) visits",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q93"],
+                        title="Q93 – Emergency Department (ED) visits",
+                    ),
+                    md=6,
+                ),
+            ],
+            className="mb-4",
+        ),
 
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q96"],
+                        title="Q96 – Public Hospital Admissions",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q103"],
+                        title="Q103 – Private hospital admissions",
+                    ),
+                    md=6,
+                ),
+            ],
+        ),
         html.Br()
     ])

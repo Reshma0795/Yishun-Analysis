@@ -1,9 +1,10 @@
 import dash
+from dash import Dash
+import os
 from dash import html, dcc
 from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
-import pandas as pd  # <-- needed to load your dataset
-
+import pandas as pd
 from logic.functional_assessment import add_FA_column, FA_layout
 from logic.nursing_needs import add_nursing_column, Nursing_layout
 from logic.rehab_needs import add_rehab_column, Rehab_layout
@@ -39,6 +40,7 @@ df = add_organization_of_care_column(df)
 # App setup
 # ------------------------------------------------
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+server = app.server
 app.title = "Yishun Dashboard"
 
 # ------------------------------------------------
@@ -261,7 +263,6 @@ sidebar = html.Div(
                 ),
                 html.Hr(style={"borderColor": "#645F9D"}),
 
-                # ✅ FIX: this link must be inside the children list
                 dbc.NavLink(
                     "GI vs Complicating Factors",
                     href="/gi-vs-cfs",
@@ -269,6 +270,7 @@ sidebar = html.Div(
                     style=NAV_LINK_STYLE,
                     active="exact",
                 ),
+                
             ],
             vertical=True,
             pills=True,
@@ -331,6 +333,9 @@ def render_page(pathname):
 # ------------------------------------------------
 # Run App
 # ------------------------------------------------
+#if __name__ == "__main__":
+    #app.run(debug=True)
+
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run(debug=True)
 

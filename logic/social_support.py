@@ -7,10 +7,12 @@ from logic.mapping_helpers import build_mapping_table
 from logic.social_support_helper import binary_question_group_table
 
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
+from logic.utilization import build_cf_x_utilization_binned_tables_per_question
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.question_texts import HEALTHCARE_UTILIZATION_QUESTIONS
-
+from logic.cf_matrix_tables import build_cf_matrix_pct_n_table
+from logic.ui_helpers import chart_card
 # --------------------------------------------
 # Columns for Lubben social network items
 # --------------------------------------------
@@ -199,33 +201,47 @@ def SocialSupport_layout(df):
     gender_order = ["Male", "Female"]
     eth_order = ["Chinese", "Malay", "Indian", "Others"]
 
-    age_counts, age_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="SocialSupport_CF_Value",
+    age_counts, age_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="SocialSupport_CF_Value",
         group_col="Age_Bin",
         group_order=age_order,
+        cf_order=[0, 1, 2],
         title="Social Support: Distribution by Age Bin (0/1/2)",
-        cf_label="Social Support CF Level",
+        legend_title="Age Bin",
     )
 
-    gender_counts, gender_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="SocialSupport_CF_Value",
+    gender_counts, gender_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="SocialSupport_CF_Value",
         group_col="Gender_Label",
         group_order=gender_order,
+        cf_order=[0, 1, 2],
         title="Social Support: Distribution by Gender (0/1/2)",
-        cf_label="Social Support CF Level",
+        legend_title="Gender",
     )
 
-    eth_counts, eth_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="SocialSupport_CF_Value",
+    eth_counts, eth_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="SocialSupport_CF_Value",
         group_col="Ethnicity_Label",
         group_order=eth_order,
+        cf_order=[0, 1, 2],
         title="Social Support: Distribution by Ethnicity (0/1/2)",
-        cf_label="Social Support CF Level",
+        legend_title="Ethnicity",
     )
 
+    social_support_matrix = build_cf_matrix_pct_n_table(
+        df_demo=df_demo,
+        cf_col="Social_Support_CF",
+        category_order=[0, 1, 2],
+        category_labels={
+            0: "0: has support for both basic healthcare services and companionship",
+            1: "1: has no support for basic healthcare but companionship",
+            2: "2: has no support for both basic healthcare services and companionship",
+        },
+            title="Complicating Factor: Social Support in Case of Need   (%, n)",
+    )
     # -----------------------
     # Healthcare utilization cross (Q78..Q103) vs Social_Support_CF (0/1/2)
     # -----------------------
@@ -245,6 +261,21 @@ def SocialSupport_layout(df):
         )
         util_figs[qcode] = fig_util
 
+    util_tables = build_cf_x_utilization_binned_tables_per_question(
+        df_demo=df_demo,
+        cf_col="Social_Support_CF",
+        category_order=[0, 1, 2],
+        category_labels={
+            0: "0: has support for both basic healthcare services and companionship",
+            1: "1: has no support for basic healthcare but companionship",
+            2: "2: has no support for both basic healthcare services and companionship",
+        },
+        util_qcodes=["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"],
+        util_question_meta=HEALTHCARE_UTILIZATION_QUESTIONS,
+        title_prefix="CF G (Social Support) × Healthcare Utilization (0 / 1–2 / 3–5 / 6+)",
+        show_pct=True,   # or False if you want only counts
+    )
+
     # -----------------------
     # Return layout
     # -----------------------
@@ -262,6 +293,11 @@ def SocialSupport_layout(df):
             style_header={"fontWeight": "bold"},
         ),
         html.Br(),
+        html.Hr(),
+        social_support_matrix,
+        html.Hr(),
+        html.Br(),
+        util_tables,
         # (optional)
         # dcc.Graph(figure=fig),
         html.Hr(),
@@ -303,11 +339,64 @@ def SocialSupport_layout(df):
         html.Hr(),
         html.H3("Distribution of # of CFs by Utilization - Social Support in Case of Need"),
         html.Hr(),
-        dcc.Graph(figure=util_figs["Q78"]),
-        dcc.Graph(figure=util_figs["Q85"]),
-        dcc.Graph(figure=util_figs["Q91"]),
-        dcc.Graph(figure=util_figs["Q93"]),
-        dcc.Graph(figure=util_figs["Q96"]),
-        dcc.Graph(figure=util_figs["Q103"]),
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q78"],
+                        title="Q78 – Private General Practitioner (GP)",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q85"],
+                        title="Q85 – Polyclinic doctor visits",
+                    ),
+                    md=6,
+                ),
+            ],
+            className="mb-4",
+        ),
+
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q91"],
+                        title="Q91 – Specialist Outpatient Clinic (SOC) visits",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q93"],
+                        title="Q93 – Emergency Department (ED) visits",
+                    ),
+                    md=6,
+                ),
+            ],
+            className="mb-4",
+        ),
+
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q96"],
+                        title="Q96 – Public Hospital Admissions",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q103"],
+                        title="Q103 – Private hospital admissions",
+                    ),
+                    md=6,
+                ),
+            ],
+        ),
         html.Br(),
+
     ])

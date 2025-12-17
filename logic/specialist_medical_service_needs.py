@@ -4,13 +4,13 @@ import dash_bootstrap_components as dbc
 
 from logic.mapping_helpers import build_mapping_table
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
+from logic.utilization import build_cf_x_utilization_binned_tables_per_question
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.question_texts import HEALTHCARE_UTILIZATION_QUESTIONS
-
-# Reuse GI single-label assignment (same rules)
 from logic.global_impressions import assign_gi_label, GI_ASSIGN_ORDER
-
+from logic.cf_matrix_tables import build_cf_matrix_pct_n_table
+from logic.ui_helpers import chart_card
 # --------------------------------------------
 # Constants
 # --------------------------------------------
@@ -119,33 +119,61 @@ def SpecialistMedicalServiceNeeds_layout(df: pd.DataFrame):
     gender_order = ["Male", "Female"]
     eth_order = ["Chinese", "Malay", "Indian", "Others"]
 
-    _, age_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="Specialist_CF_Value",
+    _, age_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="Specialist_CF_Value",
         group_col="Age_Bin",
         group_order=age_order,
+        cf_order=[0,1,2],
         title="Specialist Medical Service Needs: Distribution by Age",
-        cf_label="CF K Level",
+        legend_title="Age Bin",
     )
-    _, gender_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="Specialist_CF_Value",
+    _, gender_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="Specialist_CF_Value",
         group_col="Gender_Label",
+        cf_order=[0,1,2],
         group_order=gender_order,
         title="Specialist Medical Service Needs: Distribution by Gender",
-        cf_label="CF K Level",
+        legend_title="Gender",
     )
-    _, eth_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="Specialist_CF_Value",
+    _, eth_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="Specialist_CF_Value",
+        cf_order=[0,1,2],
         group_col="Ethnicity_Label",
         group_order=eth_order,
         title="Specialist Medical Service Needs: Distribution by Ethnicity",
-        cf_label="CF K Level",
+        legend_title="Ethnicity",
     )
 
+    specialist_matrix = build_cf_matrix_pct_n_table(
+        df_demo=df_demo,
+        cf_col="Specialist_CF_Value",
+        category_order=[0, 1, 2],
+        category_labels={
+            0: "0: no need",
+            1: "1: single or occasional referral for advice to the primary physician",
+            2: "2: regular follow up by specialist(s) for ongoing care of a condition",
+        },
+            title="Complicating Factor: Specialist Medical Service Needs (%, n)",
+    )
+    util_tables = build_cf_x_utilization_binned_tables_per_question(
+        df_demo=df_demo,
+        cf_col="Specialist_CF_Value",
+        category_order=[0, 1],
+        category_labels={
+            0: "0: no need",
+            1: "1: single or occasional referral for advice to the primary physician",
+            2: "2: regular follow up by specialist(s) for ongoing care of a condition",
+        },
+        util_qcodes=["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"],
+        util_question_meta=HEALTHCARE_UTILIZATION_QUESTIONS,
+        title_prefix="CF K (Specialist Medical Service Needs) × Healthcare Utilization (0 / 1–2 / 3–5 / 6+)",
+        show_pct=True,   # or False if you want only counts
+    )
     # -----------------------
-    # ✅ Utilization charts (same as other CFs)
+    # Utilization charts (same as other CFs)
     # -----------------------
     util_figs = {}
     for qcode in HC_UTIL_QUESTIONS:
@@ -170,7 +198,6 @@ def SpecialistMedicalServiceNeeds_layout(df: pd.DataFrame):
         [
             mapping_table,
             html.Br(),
-
             html.H4("Category Counts"),
             dash_table.DataTable(
                 data=count_table.to_dict("records"),
@@ -178,7 +205,12 @@ def SpecialistMedicalServiceNeeds_layout(df: pd.DataFrame):
                 style_cell={"textAlign": "center"},
                 style_header={"fontWeight": "bold"},
             ),
-
+            html.Br(),
+            html.Hr(),
+            specialist_matrix,
+            html.Br(),
+            html.Hr(),
+            util_tables,
             html.Br(),
             html.Hr(),
             html.H3("Distribution of # of CFs by Demographics - Specialist Medical Service Needs"),
@@ -202,12 +234,64 @@ def SpecialistMedicalServiceNeeds_layout(df: pd.DataFrame):
             html.Hr(),
             html.H3("Distribution of # of CFs by Utilization - Specialist Medical Service Needs"),
             html.Hr(),
+            dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q78"],
+                        title="Q78 – Private General Practitioner (GP)",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q85"],
+                        title="Q85 – Polyclinic doctor visits",
+                    ),
+                    md=6,
+                ),
+            ],
+            className="mb-4",
+        ),
 
-            dcc.Graph(figure=util_figs["Q78"]),
-            dcc.Graph(figure=util_figs["Q85"]),
-            dcc.Graph(figure=util_figs["Q91"]),
-            dcc.Graph(figure=util_figs["Q93"]),
-            dcc.Graph(figure=util_figs["Q96"]),
-            dcc.Graph(figure=util_figs["Q103"]),
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q91"],
+                        title="Q91 – Specialist Outpatient Clinic (SOC) visits",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q93"],
+                        title="Q93 – Emergency Department (ED) visits",
+                    ),
+                    md=6,
+                ),
+            ],
+            className="mb-4",
+        ),
+
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q96"],
+                        title="Q96 – Public Hospital Admissions",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q103"],
+                        title="Q103 – Private hospital admissions",
+                    ),
+                    md=6,
+                ),
+            ],
+        ),
+
         ]
     )

@@ -4,10 +4,13 @@ import plotly.express as px
 from logic.mapping_helpers import build_mapping_table
 from logic.nursing_helper import (nursing_question_group_table, nursing_response_cards)
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.question_texts import HEALTHCARE_UTILIZATION_QUESTIONS
 import dash_bootstrap_components as dbc
+from logic.cf_matrix_tables import build_cf_matrix_pct_n_table
+from logic.utilization import build_cf_x_utilization_binned_tables_per_question
+from logic.ui_helpers import chart_card
 # --------------------------------------------
 # Columns for Rehabilitation Skilled Task Needs
 # --------------------------------------------
@@ -184,8 +187,33 @@ def Rehab_layout(df):
         out_col="Rehab_CF_Value",
         allowed_values={0, 1, 2},
     )
+    # --------------------------------
+    rehab_matrix = build_cf_matrix_pct_n_table(
+        df_demo=df_demo,
+        cf_col="Rehab_Needs_Imputed",
+        category_order=[0, 1, 2],
+        category_labels={
+            0: "0: None",
+            1: "1: Moderate (1 task)",
+            2: "2: High (2 or more tasks)",
+        },
+            title="Complicating Factor: Rehabilitation Type Skilled Task Needs (%, n)",
+    )
 
-
+    util_tables = build_cf_x_utilization_binned_tables_per_question(
+        df_demo=df_demo,
+        cf_col="Rehab_Needs_Imputed",
+        category_order=[0, 1, 2],
+        category_labels={
+            0: "0: None",
+            1: "1: Moderate (1 task)",
+            2: "2: High (2 or more tasks)",
+        },
+        util_qcodes=["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"],
+        util_question_meta=HEALTHCARE_UTILIZATION_QUESTIONS,
+        title_prefix="CF C (Rehab Needs) × Healthcare Utilization (0 / 1–2 / 3–5 / 6+)",
+        show_pct=True,   # or False if you want only counts
+    )
     # -------------------------------
     # Healthcare utilization: cross with Rehab_Needs (0/1/2)
     # -------------------------------
@@ -221,31 +249,34 @@ def Rehab_layout(df):
     gender_order = ["Male", "Female"]
     eth_order = ["Chinese", "Malay", "Indian", "Others"]
 
-    age_counts, age_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="Rehab_CF_Value",
+    age_counts, age_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="Rehab_CF_Value",
         group_col="Age_Bin",
         group_order=age_order,
+        cf_order=[0, 1, 2],
         title="Rehabilitation Needs: Distribution by Age Bin (Imputed: 999→0)",
-        cf_label="Rehabilitation CF Level",
+        legend_title="Age Bin",
     )
 
-    gender_counts, gender_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="Rehab_CF_Value",
+    gender_counts, gender_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="Rehab_CF_Value",
         group_col="Gender_Label",
+        cf_order=[0, 1, 2],
         group_order=gender_order,
         title="Rehabilitation Needs: Distribution by Gender (Imputed: 999→0)",
-        cf_label="Rehabilitation CF Level",
+        legend_title="Gender",
     )
 
-    eth_counts, eth_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="Rehab_CF_Value",
+    eth_counts, eth_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="Rehab_CF_Value",
         group_col="Ethnicity_Label",
+        cf_order=[0, 1, 2],
         group_order=eth_order,
         title="Rehabilitation Needs: Distribution by Ethnicity (Imputed: 999→0)",
-        cf_label="Rehabilitation CF Level",
+        legend_title="Ethnicity",
     )
 
     mapping_table = build_mapping_table(mapping_rows, title="CF C - Rehabilitation Type Skilled Task Needs")
@@ -277,6 +308,12 @@ def Rehab_layout(df):
             style_cell={"textAlign": "center"},
             style_header={"fontWeight": "bold"},
         ),
+        html.Br(),
+        html.Hr(),
+        rehab_matrix,
+        html.Br(),
+        html.Hr(),
+        util_tables,
         html.Br(),
         html.Hr(),
         html.H3("Distribution of # of CFs by Demographics (Rehab Needs)"),
@@ -327,13 +364,66 @@ def Rehab_layout(df):
         html.Hr(),
         html.H3("Distribution of # of CFs by Utilization (Rehab Needs)"),
         html.Hr(),
-        dcc.Graph(figure=util_figs["Q78"]),
-        dcc.Graph(figure=util_figs["Q85"]),
-        dcc.Graph(figure=util_figs["Q91"]),
-        dcc.Graph(figure=util_figs["Q93"]),
-        dcc.Graph(figure=util_figs["Q96"]),
-        dcc.Graph(figure=util_figs["Q103"]),
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q78"],
+                        title="Q78 – Private General Practitioner (GP)",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q85"],
+                        title="Q85 – Polyclinic doctor visits",
+                    ),
+                    md=6,
+                ),
+            ],
+            className="mb-4",
+        ),
+
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q91"],
+                        title="Q91 – Specialist Outpatient Clinic (SOC) visits",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q93"],
+                        title="Q93 – Emergency Department (ED) visits",
+                    ),
+                    md=6,
+                ),
+            ],
+            className="mb-4",
+        ),
+
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q96"],
+                        title="Q96 – Public Hospital Admissions",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q103"],
+                        title="Q103 – Private hospital admissions",
+                    ),
+                    md=6,
+                ),
+            ],
+        ),
         #html.H4("Distribution Chart"),
         #dcc.Graph(figure=fig),
-        html.Br()
+        html.Br(),
+
     ])

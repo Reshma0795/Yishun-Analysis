@@ -76,15 +76,11 @@ def add_categorical_labels(
       }
     """
     df = df.copy()
-
     for out_col, spec in mappings.items():
         source = spec.get("source")
         m = spec.get("map", {})
-
         if source not in df.columns:
             df[out_col] = None
             continue
-
         df[out_col] = df[source].apply(lambda x: m.get(to_int(x), None))
-
     return df

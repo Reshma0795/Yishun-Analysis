@@ -8,9 +8,11 @@ from logic.mapping_helpers import build_mapping_table
 from logic.financial_value_counts_helpers import build_mapped_value_counts_table
 
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
+from logic.utilization import build_cf_x_utilization_binned_tables_per_question
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
-
+from logic.cf_matrix_tables import build_cf_matrix_pct_n_table
+from logic.ui_helpers import chart_card
 # ------------------------------------------------------------
 # J. Financial Challenges (Q108, Q109, Q110, Q111, Q74)
 # ------------------------------------------------------------
@@ -56,7 +58,6 @@ def _to_int(x):
         return int(x)
     except (TypeError, ValueError):
         return None
-
 
 # -------------------------------
 # Imputation helper (ONLY Q110)
@@ -273,33 +274,59 @@ def FinancialChallenges_layout(df):
     gender_order = ["Male", "Female"]
     eth_order = ["Chinese", "Malay", "Indian", "Others"]
 
-    age_counts, age_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="Financial_CF_Value",
+    age_counts, age_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="Financial_CF_Value",
         group_col="Age_Bin",
         group_order=age_order,
+        cf_order=[0, 1, 2],
         title="Financial Challenges (Imputed Q110): Distribution by Age Bin (0/1)",
-        cf_label="Financial Challenges (0/1)",
+        legend_title="Age Bin",
     )
 
-    gender_counts, gender_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="Financial_CF_Value",
+    gender_counts, gender_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="Financial_CF_Value",
         group_col="Gender_Label",
+        cf_order=[0, 1, 2],
         group_order=gender_order,
         title="Financial Challenges (Imputed Q110): Distribution by Gender (0/1)",
-        cf_label="Financial Challenges (0/1)",
+        legend_title="Gender",
     )
 
-    eth_counts, eth_fig = cf_distribution_by_group(
-        df_demo,
-        cf_count_col="Financial_CF_Value",
+    eth_counts, eth_fig = cf_distribution_rowwise_by_group(
+        df_demo=df_demo,
+        cf_col="Financial_CF_Value",
+        cf_order=[0, 1, 2],
         group_col="Ethnicity_Label",
         group_order=eth_order,
         title="Financial Challenges (Imputed Q110): Distribution by Ethnicity (0/1)",
-        cf_label="Financial Challenges (0/1)",
+        legend_title="Ethnicity",
     )
 
+    financial_challenges_matrix = build_cf_matrix_pct_n_table(
+        df_demo=df_demo,
+        cf_col="Financial_Challenges_CF_Imputed",
+        category_order=[0, 1],
+        category_labels={
+            0: "0: No",
+            1: "1: Yes",
+        },
+            title="Complicating Factor: Financial Challenges (%, n)",
+    )
+    util_tables = build_cf_x_utilization_binned_tables_per_question(
+        df_demo=df_demo,
+        cf_col="Financial_Challenges_CF_Imputed",
+        category_order=[0, 1],
+        category_labels={
+            0: "0: No",
+            1: "1: Yes",
+        },
+        util_qcodes=["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"],
+        util_question_meta=HEALTHCARE_UTILIZATION_QUESTIONS,
+        title_prefix="CF J (Financial Challenges) × Healthcare Utilization (0 / 1–2 / 3–5 / 6+)",
+        show_pct=True,   # or False if you want only counts
+    )
     # ============================================================
     # Healthcare utilization cross (USE IMPUTED CF)
     # ============================================================
@@ -332,10 +359,8 @@ def FinancialChallenges_layout(df):
 
     return html.Div([
         mapping_table,
-
         html.Hr(),
         html.H3("Value Counts (Raw Questions)"),
-
         html.H5("Q108 – Missed polyclinic/GP consultation when needed"),
         dash_table.DataTable(
             data=vc_q108.to_dict("records"),
@@ -344,7 +369,6 @@ def FinancialChallenges_layout(df):
             style_header={"fontWeight": "bold"},
         ),
         html.Br(),
-
         html.H5("Q109 – Main reason (polyclinic/GP)"),
         dash_table.DataTable(
             data=vc_q109.to_dict("records"),
@@ -353,7 +377,6 @@ def FinancialChallenges_layout(df):
             style_header={"fontWeight": "bold"},
         ),
         html.Br(),
-
         html.H5("Q110 – Missed public hospital consultation when needed (RAW)"),
         dash_table.DataTable(
             data=vc_q110.to_dict("records"),
@@ -408,26 +431,80 @@ def FinancialChallenges_layout(df):
             columns=[{"name": c, "id": c} for c in count_table_imputed.columns],
             style_cell={"textAlign": "center"},
             style_header={"fontWeight": "bold"},
-        ),
+),
         html.Br(),
-
+        html.Hr(),
+        financial_challenges_matrix,
+        html.Br(),
+        html.Hr(),
+        util_tables,
+        html.Br(),
         html.Hr(),
         html.H3("Distribution by Demographics (Imputed Q110)"),
-
         dbc.Card(dbc.CardBody(dcc.Graph(figure=age_fig, config={"displayModeBar": False})), style=card_style),
         html.Br(),
         dbc.Card(dbc.CardBody(dcc.Graph(figure=gender_fig, config={"displayModeBar": False})), style=card_style),
         html.Br(),
         dbc.Card(dbc.CardBody(dcc.Graph(figure=eth_fig, config={"displayModeBar": False})), style=card_style),
-
         html.Hr(),
         html.H3("Healthcare Utilization: Cross with Financial Challenges (Imputed Q110)"),
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q78"],
+                        title="Q78 – Private General Practitioner (GP)",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q85"],
+                        title="Q85 – Polyclinic doctor visits",
+                    ),
+                    md=6,
+                ),
+            ],
+            className="mb-4",
+        ),
 
-        dcc.Graph(figure=util_figs["Q78"]),
-        dcc.Graph(figure=util_figs["Q85"]),
-        dcc.Graph(figure=util_figs["Q91"]),
-        dcc.Graph(figure=util_figs["Q93"]),
-        dcc.Graph(figure=util_figs["Q96"]),
-        dcc.Graph(figure=util_figs["Q103"]),
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q91"],
+                        title="Q91 – Specialist Outpatient Clinic (SOC) visits",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q93"],
+                        title="Q93 – Emergency Department (ED) visits",
+                    ),
+                    md=6,
+                ),
+            ],
+            className="mb-4",
+        ),
+
+        dbc.Row(
+            [
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q96"],
+                        title="Q96 – Public Hospital Admissions",
+                    ),
+                    md=6,
+                ),
+                dbc.Col(
+                    chart_card(
+                        util_figs["Q103"],
+                        title="Q103 – Private hospital admissions",
+                    ),
+                    md=6,
+                ),
+            ],
+        ),
         html.Br(),
     ])

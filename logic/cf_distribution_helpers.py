@@ -1,6 +1,6 @@
 import pandas as pd
 import plotly.express as px
-
+from logic.plot_style import apply_modern_bar_style
 
 def build_binary_cf_count(
     df: pd.DataFrame,
@@ -45,66 +45,94 @@ def build_binary_cf_count(
     return df
 
 
-def cf_distribution_by_group(
-    df: pd.DataFrame,
-    cf_count_col: str,
-    group_col: str,
-    group_order=None,
-    title: str = "",
-    cf_label: str = "CF Count",
+def cf_distribution_rowwise_by_group(
+    df_demo: pd.DataFrame,
+    *,
+    cf_col: str,              # e.g. "Nursing_Needs_Imputed"
+    group_col: str,           # e.g. "Age_Bin" / "Gender_Label" / "Ethnicity_Label"
+    cf_order,
+    group_order,
+    title: str,
+    legend_title: str,
+    pct_decimals: int = 1,
 ):
     """
-    Returns:
-      counts_df: group_col x CF_count (0/1/2/...) counts in long form
-      fig: stacked bar chart
+    ROW-WISE % by CF category (matches your matrix subgroup cells):
+      pct = n(group within CF cat) / n(CF cat) * 100
+
+    Chart style matches utilization:
+      x = CF category
+      color = group
+      barmode = group (side-by-side)
+      y = Percent
+      text = "% (n=)"
     """
-    if group_col not in df.columns or cf_count_col not in df.columns:
-        empty = pd.DataFrame(columns=[group_col, cf_label, "Count"])
-        fig = px.bar(empty, x=group_col, y="Count", title=f"{title} (No data)")
+
+    # keep relevant rows only
+    tmp = df_demo[[cf_col, group_col]].dropna().copy()
+    tmp = tmp[tmp[cf_col].isin(cf_order)]
+    tmp = tmp[tmp[group_col].isin(group_order)]
+
+    if tmp.empty:
+        empty = pd.DataFrame(columns=["CF", "Group", "n", "Percent", "Label"])
+        fig = px.bar(empty, x="CF", y="Percent", color="Group", barmode="group", title=title)
+        fig.update_layout(template="plotly_white")
         return empty, fig
 
-    tmp = df[[group_col, cf_count_col]].dropna().copy()
-    if tmp.empty:
-        empty = pd.DataFrame(columns=[group_col, cf_label, "Count"])
-        fig = px.bar(empty, x=group_col, y="Count", title=f"{title} (No data)")
-        return empty, fig
+    tmp["CF"] = pd.Categorical(tmp[cf_col], categories=list(cf_order), ordered=True)
+    tmp["Group"] = pd.Categorical(tmp[group_col], categories=list(group_order), ordered=True)
 
     counts = (
-        tmp.groupby([group_col, cf_count_col])
+        tmp.groupby(["CF", "Group"])
         .size()
-        .reset_index(name="Count")
-        .rename(columns={cf_count_col: cf_label})
+        .reset_index(name="n")
     )
 
-    # readable labels for 0/1 binary case
-    if set(counts[cf_label].unique()).issubset({0, 1}):
-        counts[cf_label] = counts[cf_label].map({0: "0 CFs", 1: "1 CF"})
+    # ✅ denominator = total in that CF category (ROW-wise)
+    cf_totals = counts.groupby("CF")["n"].sum().reset_index(name="cf_total")
+    counts = counts.merge(cf_totals, on="CF", how="left")
+    counts["Percent"] = (counts["n"] / counts["cf_total"]) * 100.0
 
-    if group_order:
-        counts[group_col] = pd.Categorical(counts[group_col], categories=group_order, ordered=True)
-
-    # Make CF values categorical so Plotly treats them as discrete bars (0/1/2)
-    counts[cf_label] = counts[cf_label].astype(str)
+    counts["Label"] = counts.apply(
+        lambda r: f"{r['Percent']:.{pct_decimals}f}%\n(n={int(r['n'])})" if r["n"] > 0 else "",
+        axis=1,
+    )
 
     fig = px.bar(
         counts,
-        x=group_col,          # Gender / Age_Bin / Ethnicity on X
-        y="Count",
-        color=cf_label,       # CF 0/1/2 become the 3 bars
-        barmode="group",      # <-- KEY: grouped (side-by-side), not stacked
-        text="Count",
+        x="CF",
+        y="Percent",
+        color="Group",
+        barmode="group",          # ✅ side-by-side (like utilization)
+        text="Label",
         title=title,
+        labels={"CF": "", "Percent": "Percent (%)", "Group": legend_title},
     )
 
-    fig.update_traces(textposition="outside", cliponaxis=False)
-
-    # optional spacing tweaks so bars don’t look cramped
+    # Modern + consistent styling
     fig.update_layout(
-        bargap=0.35,          # space between Male vs Female groups
-        bargroupgap=0.10,     # space between CF bars inside a group
-        legend_title_text=cf_label,
+        template="plotly_white",
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        title_x=0.02,
+        margin=dict(l=40, r=20, t=60, b=70),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.22,
+            xanchor="left",
+            x=0.0,
+            font=dict(size=11),
+            title_text=legend_title,
+        ),
     )
 
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=True, zeroline=False, ticksuffix="%")
+
+    # ✅ make small values still readable
+    fig.update_traces(textposition="outside", cliponaxis=False)
+    fig.update_layout(uniformtext_minsize=10, uniformtext_mode="hide")
 
     return counts, fig
 
