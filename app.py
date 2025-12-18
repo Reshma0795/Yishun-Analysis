@@ -22,6 +22,8 @@ from logic.non_medical_resource_needs import add_non_medical_resource_needs_colu
 from logic.value_count_page import ValueCounts_layout
 from logic.gi_vs_cfs import layout as GI_vs_CFs_layout
 from logic.organization_care import add_organization_of_care_column, OrganizationOfCare_layout
+from logic.just_global_impressions import GI_I_layout, GI_II_layout, GI_III_layout, GI_IV_layout, GI_V_layout
+from logic.for_just_global_impressions import GI_unique_summary_layout, GI_stepwise_summary_layout
 # ------------------------------------------------
 # Load data ONCE (global)
 # ------------------------------------------------
@@ -141,6 +143,14 @@ sidebar = html.Div(
                     href="/gi-5-limited-reserve",
                     id="link-gi-5",
                     style={**NAV_LINK_STYLE, "paddingLeft": "24px"},
+                    active="exact",
+                ),
+                html.Hr(style={"borderColor": "#645F9D"}),
+                dbc.NavLink(
+                    "Global Impressions Overview",
+                    href="/just-gi",
+                    id="link-gi-overview",
+                    style=NAV_LINK_STYLE,
                     active="exact",
                 ),
 
@@ -328,6 +338,7 @@ def render_page(pathname):
     elif pathname == "/gi-3-chronic-stable": return GI_III_layout(df)
     elif pathname == "/gi-4-long-decline": return GI_IV_layout(df)
     elif pathname == "/gi-5-limited-reserve": return GI_V_layout(df)
+    elif pathname == "/just-gi": return GI_unique_summary_layout(df)
     #elif pathname == "/gi-utilisation": return gi_utilisation.layout(df)
     elif pathname == "/healthcare-utilization-value-counts": return ValueCounts_layout(df)
     elif pathname == "/gi-vs-cfs": return GI_vs_CFs_layout(df)

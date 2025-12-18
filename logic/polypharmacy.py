@@ -256,9 +256,9 @@ def Polypharmacy_layout(df):
         cf_col="Social_Support_CF",
         category_order=[0, 1, 2],
         category_labels={
-            0: "0: has support for both basic healthcare services and companionship",
-            1: "1: has no support for basic healthcare but companionship",
-            2: "2: has no support for both basic healthcare services and companionship",
+            0: "0: fewer than 5 prescription medications",
+            1: "1: 5 to 8 prescription medications",
+            2: "2: 9 or more prescription medications",
         },
         util_qcodes=["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"],
         util_question_meta=HEALTHCARE_UTILIZATION_QUESTIONS,

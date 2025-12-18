@@ -79,16 +79,38 @@ def gi_ii_flag(row) -> bool:
 
 def gi_iii_flag(row) -> bool:
     has_nlt = any(row.get(col, 0) == 1 for col in GI_II_NLT_COLS)
+    has_elevated_bp = row.get("Q124") in (1, 3)
     q142 = row.get("Q142")
-    limited = q142 in (1, 2)
+    limited = q142 == 1
     has_lt = any(row.get(col, 0) == 1 for col in GI_III_LT_COLS)
-    not_limited = (q142 == 3)
-    return has_nlt or limited or has_lt or not_limited
+    not_limited = q142 == 3
+    return ((has_nlt or has_elevated_bp) and limited) or (has_lt and not_limited)
 
 
 def gi_v_flag(row) -> bool:
-    # Placeholder until you implement GI V properly
-    return False
+    """
+    GI V logic:
+      (Q96 >= 2 OR Q103 >= 2)  AND  (any life-threatening condition == 1)
+    Notes:
+      - Treats 666/777/888/999 and missing as 0 for hospitalization count.
+      - Life-threatening cols are the GI_III_LT_COLS (Q130_A ... etc.).
+    """
+
+    def _safe_hosp(v):
+        v = _to_int(v)
+        if v is None:
+            return 0
+        # Treat special codes as 0 (not meeting ">=2")
+        if v in (666, 777, 888, 999):
+            return 0
+        return v
+
+    q96 = _safe_hosp(row.get("Q96"))
+    q103 = _safe_hosp(row.get("Q103"))
+    has_2plus_hosp = (q96 >= 2) or (q103 >= 2)
+    has_life_threatening = any(_to_int(row.get(col)) == 1 for col in GI_III_LT_COLS)
+    return has_2plus_hosp and has_life_threatening
+
 
 # ============================================================
 # Assign ONE GI label per person (single classification)
@@ -320,7 +342,6 @@ def GI_I_layout(df: pd.DataFrame):
         html.Br(),
     ])
 
-
 # ============================================================
 # GI II – Chronic conditions, asymptomatic-ish
 # ============================================================
@@ -389,18 +410,12 @@ def GI_II_layout(df: pd.DataFrame):
     ]
 
     mapping_table = build_mapping_table(mapping_rows, title="Global Impression – GI II")
-
     gi2_mask = df.apply(lambda r: gi_ii_flag(r), axis=1)
-
     gi2_count = int(gi2_mask.sum())
     total = int(len(df))
     count_table = pd.DataFrame({"Group": ["GI II", "Others"], "Count": [gi2_count, total - gi2_count]})
-
-    fig = px.bar(count_table, x="Group", y="Count",
-                 title="GI II – Count of Respondents Meeting GI II Logic", text="Count")
-
+    fig = px.bar(count_table, x="Group", y="Count", title="GI II – Count of Respondents Meeting GI II Logic", text="Count")
     util_section = utilisation_charts_section_for_gi(df, gi2_mask, "GI II")
-
     return html.Div([
         gi_one_row_table(GI_CONTENT[2]),
         html.Br(),
@@ -487,7 +502,7 @@ def GI_III_layout(df: pd.DataFrame):
             "Q130_S, Q130_T, Q130_U, Q130_V, Q130_W = 1\n"
             "OR (Q124 == 1 OR Q124 == 3)]\n"
             "AND\n"
-            "[Q142 == 1 OR Q142 == 2]\n\n"
+            "[Q142 == 1]\n\n"
             "OR\n\n"
             "[At least one of Q130_A, Q130_B, Q130_C, Q130_D,\n"
             "Q130_E, Q130_F, Q130_H, Q130_I, Q130_M = 1]\n"
@@ -499,18 +514,12 @@ def GI_III_layout(df: pd.DataFrame):
     ]
 
     mapping_table = build_mapping_table(mapping_rows, title="Global Impression – GI III")
-
     gi3_mask = df.apply(lambda r: gi_iii_flag(r), axis=1)
-
     gi3_count = int(gi3_mask.sum())
     total = int(len(df))
     count_table = pd.DataFrame({"Group": ["GI III", "Others"], "Count": [gi3_count, total - gi3_count]})
-
-    fig = px.bar(count_table, x="Group", y="Count",
-                 title="GI III – Count of Respondents Meeting GI III Logic", text="Count")
-
+    fig = px.bar(count_table, x="Group", y="Count", title="GI III – Count of Respondents Meeting GI III Logic", text="Count")
     util_section = utilisation_charts_section_for_gi(df, gi3_mask, "GI III")
-
     return html.Div([
         gi_one_row_table(GI_CONTENT[3]),
         html.Br(),
@@ -596,18 +605,12 @@ def GI_IV_layout(df: pd.DataFrame):
 ]
 
     mapping_table = build_mapping_table(mapping_rows, title="GI IV - Long course of decline")
-
     gi4_mask = df.apply(gi_iv_flag, axis=1)
-
     gi4_count = int(gi4_mask.sum())
     total = int(len(df))
     count_table = pd.DataFrame({"Group": ["GI IV", "Others"], "Count": [gi4_count, total - gi4_count]})
-
-    fig = px.bar(count_table, x="Group", y="Count",
-                 title="GI IV – Count of Respondents Meeting GI IV Logic", text="Count")
-
+    fig = px.bar(count_table, x="Group", y="Count", title="GI IV – Count of Respondents Meeting GI IV Logic", text="Count")
     util_section = utilisation_charts_section_for_gi(df, gi4_mask, "GI IV")
-
     return html.Div([
         gi_one_row_table(GI_CONTENT[4]),
         html.Br(),
@@ -624,12 +627,83 @@ def GI_IV_layout(df: pd.DataFrame):
 # GI V – placeholder until you implement GI V logic
 # ============================================================
 def GI_V_layout(df: pd.DataFrame):
-    gi5_mask = df.apply(lambda r: gi_v_flag(r), axis=1)
+    mapping_rows = [
+    {
+        "Global Impression": "Global Impression – V",
+        "Mapped Question No from Survey": (
+            "Q96\n"
+            "Q103\n"
+            "Q130"
+        ),
+        "Question Description": (
+            "Q96 –\n"
+            "In the past 12 months, how many times have you had public hospital admissions including public community hospital admissions\n"
+            "1) 0\n"
+            "2) No.of times (exclude 0):\n"
+            "666) Unable to recall\n"
+            "777) Refused\n"
+            "Q103 –\n"
+            "In the past 12 months, how many times have you had private hospital admissions\n"
+            "1) 0\n"
+            "2) No.of times (exclude 0):\n"
+            "3) No, not limited\n"
+            "666) Unable to recall\n"
+            "777) Refused\n\n"
+            "Q130 –\n"
+            "Have you ever been told by a western-trained doctor that you have other chronic conditions apart from those mentioned?\n"
+            "1) Yes, please specify:\n\n"
+            "non-life-threatening conditions:\n"
+            "G)	Digestive illness (stomach or intestinal)\n"
+            "J)	Joint pain, arthritis, rheumatism or nerve pain\n"
+            "K)	Chronic back pain\n"
+            "L)	Osteoporosis\n"
+            "O)	Cataract\n"
+            "P)	Glaucoma\n"
+            "Q)	Age-related macular degeneration\n"
+            "S)	Chronic skin condition (e.g. eczema, psoriasis)\n"
+            "T)	Epilepsy\n"
+            "U)	Thyroid disorder\n"
+            "V)	Migraine\n"
+            "W)	Parkinsonism\n"
+            "\n"
+            "2) No\n\n"
+           
+        ),
+        "GI Definition": "Limited reserve & serious exacerbations",
+        "Data Mapping": (
+            "Q96 –\n"
+            "666) Unable to recall\n"
+            "777) X (Refused)\n"
+            "Q103 –\n"
+            "666) Unable to recall\n"
+            "777) X (Refused)\n"
+            "Q130 –\n"
+            "1) Yes\n"
+            "2) No\n\n"
+        ),
+        "Coding": (
+            "If Q96 >= 2 OR Q103 == 1 AND Q130 >= 2\n"
+            "& At least one of Q130_A, Q130_B, Q130_C, Q130_D,\n"
+            "Q130_E, Q130_F, Q130_H, Q130_I, Q130_M = 1]\n"
+            "-> GI V (Limited reserve & serious exacerbations)"
+        ),
+    }
+]
+    
+    mapping_table = build_mapping_table(mapping_rows, title="GI V - Limited reserve & serious exacerbations")
+    gi5_mask = df.apply(gi_v_flag, axis=1)
+    gi5_count = int(gi5_mask.sum())
+    total = int(len(df))
+    count_table = pd.DataFrame({"Group": ["GI V", "Others"], "Count": [gi5_count, total - gi5_count]})
+    fig = px.bar(count_table, x="Group", y="Count", title="GI V – Count of Respondents Meeting GI V Logic", text="Count")
     util_section = utilisation_charts_section_for_gi(df, gi5_mask, "GI V")
-
     return html.Div([
         gi_one_row_table(GI_CONTENT[5]),
         html.Br(),
-        #util_section,
+        mapping_table,
+        html.Br(),
+        dcc.Graph(figure=fig, config={"displayModeBar": False}),
+        html.Br(),
+        util_section,
         html.Br(),
     ])
