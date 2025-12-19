@@ -2,10 +2,9 @@ import pandas as pd
 from dash import html, dcc, dash_table
 import plotly.express as px
 import dash_bootstrap_components as dbc
-
 from logic.mapping_helpers import build_mapping_table
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_group_cf_on_y
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.question_texts import HEALTHCARE_UTILIZATION_QUESTIONS
 from logic.cf_matrix_tables import build_cf_matrix_pct_n_table
@@ -14,12 +13,10 @@ from logic.ui_helpers import chart_card
 # ------------------------------------------------------------
 # Inputs
 # ------------------------------------------------------------
-GP_COL  = "Q80"   # GP visits
-PC_COL  = "Q85"   # PC visits
-SOC_COL = "Q91"   # SOC visits
-
+GP_COL  = "Q80"
+PC_COL  = "Q85"
+SOC_COL = "Q91"
 HC_UTIL_QUESTIONS = ["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"]
-
 
 # ------------------------------------------------------------
 # Core CF Logic
@@ -147,35 +144,32 @@ def OrganizationOfCare_layout(df):
         allowed_values={0, 1, 2},
     )
 
-    age_counts, age_fig = cf_distribution_rowwise_by_group(
+    age_counts, age_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
-        cf_col="OrgCare_CF_Value",
+        cf_col="Organization_of_Care_CF",
         group_col="Age_Bin",
         cf_order=[0, 1, 2],
         group_order=["<40", "40–65", "65–85", ">=85"],
-        title="Organization of Care: Distribution by Age",
-        legend_title="Age Bin",
-    )
+        title="Organization of Care: CF distribution within each Age Bin",
+        legend_title="CF Category")
 
-    gender_counts, gender_fig = cf_distribution_rowwise_by_group(
+    gender_counts, gender_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
-        cf_col="OrgCare_CF_Value",
+        cf_col="Organization_of_Care_CF",
         group_col="Gender_Label",
-        group_order=["Male", "Female"],
         cf_order=[0, 1, 2],
-        title="Organization of Care: Distribution by Gender",
-        legend_title="Gender",
-    )
+        group_order=["Male", "Female"],
+        title="Organization of Care: CF distribution within each Gender group",
+        legend_title="CF Category")
 
-    eth_counts, eth_fig = cf_distribution_rowwise_by_group(
+    eth_counts, eth_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
-        cf_col="OrgCare_CF_Value",
+        cf_col="Organization_of_Care_CF",
         group_col="Ethnicity_Label",
         cf_order=[0, 1, 2],
         group_order=["Chinese", "Malay", "Indian", "Others"],
-        title="Organization of Care: Distribution by Ethnicity",
-        legend_title="Ethnicity",
-    )
+        title="Organization of Care: CF distribution within each Ethnicity group",
+        legend_title="CF Category")
 
     organization_of_care_matrix = build_cf_matrix_pct_n_table(
         df_demo=df_demo,
@@ -186,8 +180,9 @@ def OrganizationOfCare_layout(df):
             1: "1: patient will see more than 1 doctor, from 1 site of care",
             2: "2: patient will see more than 1 doctor, from more than 1 site of care",
         },
-            title="Complicating Factor: Organization of Care (%, n)",
-    )
+        title="Complicating Factor: Organization of Care (%, n)",
+        total_denominator=2499)
+    
     util_tables = build_cf_x_utilization_binned_tables_per_question(
         df_demo=df_demo,
         cf_col="Organization_of_Care_CF",
@@ -199,9 +194,9 @@ def OrganizationOfCare_layout(df):
         },
         util_qcodes=["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"],
         util_question_meta=HEALTHCARE_UTILIZATION_QUESTIONS,
-        title_prefix="CF D (Organization of Own Care) × Healthcare Utilization (0 / 1–2 / 3–5 / 6+)",
-        show_pct=True,   # or False if you want only counts
-    )
+        title_prefix="CF D (Organization of Care) × Healthcare Utilization (0 / 1–2 / 3–5 / 6+)",
+        show_pct=True)
+    
     # ----------------------------------------
     # Healthcare utilization cross (Q78–Q103)
     # ----------------------------------------
@@ -251,67 +246,31 @@ def OrganizationOfCare_layout(df):
         dbc.Card(dbc.CardBody(dcc.Graph(figure=gender_fig, config={"displayModeBar": False}))),
         html.Br(),
         dbc.Card(dbc.CardBody(dcc.Graph(figure=eth_fig, config={"displayModeBar": False}))),
-
         html.Hr(),
         html.H3("Distribution of CF by Utilization"),
         html.Hr(),
         dbc.Row(
             [
-                dbc.Col(
-                    chart_card(
-                        util_figs["Q78"],
-                        title="Q78 – Private General Practitioner (GP)",
-                    ),
-                    md=6,
-                ),
-                dbc.Col(
-                    chart_card(
-                        util_figs["Q85"],
-                        title="Q85 – Polyclinic doctor visits",
-                    ),
-                    md=6,
-                ),
+                dbc.Col(chart_card(util_figs["Q78"], title="Q78 – Private General Practitioner (GP)"), md=6),
+                dbc.Col(chart_card(util_figs["Q85"], title="Q85 – Polyclinic doctor visits"), md=6),
             ],
             className="mb-4",
         ),
 
         dbc.Row(
             [
-                dbc.Col(
-                    chart_card(
-                        util_figs["Q91"],
-                        title="Q91 – Specialist Outpatient Clinic (SOC) visits",
-                    ),
-                    md=6,
-                ),
-                dbc.Col(
-                    chart_card(
-                        util_figs["Q93"],
-                        title="Q93 – Emergency Department (ED) visits",
-                    ),
-                    md=6,
-                ),
+                dbc.Col(chart_card(util_figs["Q91"], title="Q91 – Specialist Outpatient Clinic (SOC) visits"), md=6),
+                dbc.Col(chart_card(util_figs["Q93"], title="Q93 – Emergency Department (ED) visits"), md=6),
             ],
             className="mb-4",
         ),
 
         dbc.Row(
             [
-                dbc.Col(
-                    chart_card(
-                        util_figs["Q96"],
-                        title="Q96 – Public Hospital Admissions",
-                    ),
-                    md=6,
-                ),
-                dbc.Col(
-                    chart_card(
-                        util_figs["Q103"],
-                        title="Q103 – Private hospital admissions",
-                    ),
-                    md=6,
-                ),
+                dbc.Col(chart_card(util_figs["Q96"], title="Q96 – Public Hospital Admissions"), md=6),
+                dbc.Col(chart_card(util_figs["Q103"], title="Q103 – Private hospital admissions"), md=6),
             ],
+            className="mb-4",
         ),
 
     ])

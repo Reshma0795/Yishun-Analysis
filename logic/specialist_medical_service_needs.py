@@ -4,7 +4,7 @@ import dash_bootstrap_components as dbc
 
 from logic.mapping_helpers import build_mapping_table
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_group_cf_on_y
 from logic.utilization import build_cf_x_utilization_binned_tables_per_question
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.question_texts import HEALTHCARE_UTILIZATION_QUESTIONS
@@ -30,9 +30,7 @@ def add_specialist_medical_service_needs_column(df: pd.DataFrame) -> pd.DataFram
 
     if "GI_Assigned" not in dff.columns:
         dff["GI_Assigned"] = dff.apply(assign_gi_label, axis=1)
-        dff["GI_Assigned"] = pd.Categorical(
-            dff["GI_Assigned"], categories=GI_ASSIGN_ORDER, ordered=True
-        )
+        dff["GI_Assigned"] = pd.Categorical(dff["GI_Assigned"], categories=GI_ASSIGN_ORDER, ordered=True)
 
     def _map_gi_to_cf_k(gi_label):
         if pd.isna(gi_label):
@@ -119,7 +117,7 @@ def SpecialistMedicalServiceNeeds_layout(df: pd.DataFrame):
     gender_order = ["Male", "Female"]
     eth_order = ["Chinese", "Malay", "Indian", "Others"]
 
-    _, age_fig = cf_distribution_rowwise_by_group(
+    _, age_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Specialist_CF_Value",
         group_col="Age_Bin",
@@ -128,22 +126,22 @@ def SpecialistMedicalServiceNeeds_layout(df: pd.DataFrame):
         title="Specialist Medical Service Needs: Distribution by Age",
         legend_title="Age Bin",
     )
-    _, gender_fig = cf_distribution_rowwise_by_group(
+    _, gender_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Specialist_CF_Value",
         group_col="Gender_Label",
         cf_order=[0,1,2],
         group_order=gender_order,
-        title="Specialist Medical Service Needs: Distribution by Gender",
+        title="Specialist Medical Service Needs: CF distribution within each Gender group",
         legend_title="Gender",
     )
-    _, eth_fig = cf_distribution_rowwise_by_group(
+    _, eth_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Specialist_CF_Value",
         cf_order=[0,1,2],
         group_col="Ethnicity_Label",
         group_order=eth_order,
-        title="Specialist Medical Service Needs: Distribution by Ethnicity",
+        title="Specialist Medical Service Needs: CF distribution within each Ethnicity group",
         legend_title="Ethnicity",
     )
 
@@ -161,7 +159,7 @@ def SpecialistMedicalServiceNeeds_layout(df: pd.DataFrame):
     util_tables = build_cf_x_utilization_binned_tables_per_question(
         df_demo=df_demo,
         cf_col="Specialist_CF_Value",
-        category_order=[0, 1],
+        category_order=[0, 1,2],
         category_labels={
             0: "0: no need",
             1: "1: single or occasional referral for advice to the primary physician",
