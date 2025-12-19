@@ -4,7 +4,7 @@ import plotly.express as px
 from logic.mapping_helpers import build_mapping_table
 from logic.nursing_helper import (nursing_question_group_table, nursing_response_cards)
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_group_cf_on_y
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.question_texts import HEALTHCARE_UTILIZATION_QUESTIONS
 import dash_bootstrap_components as dbc
@@ -86,13 +86,7 @@ def Rehab_layout(df):
         row_labels=Q107_rehab_labels,
         title_text="Q107 – After discharge from your last hospital admission, which of the following did you need?",
     )
-
-    cards = nursing_response_cards(
-        df,
-        cols=Q107_rehab_cols,
-        title_prefix="Q107 – Rehabilitation type skilled task needs",
-    )
-
+    
     count_table = pd.DataFrame({
         "Category": [0, 1, 2],
         "Meaning": [
@@ -165,6 +159,7 @@ def Rehab_layout(df):
         ),
         }
     ]
+    mapping_table = build_mapping_table(mapping_rows, title="CF C - Rehabilitation Type Skilled Task Needs")
 
     # -------------------------------
     # Demographics + CF distribution (IMPUTED df)
@@ -188,6 +183,7 @@ def Rehab_layout(df):
         allowed_values={0, 1, 2},
     )
     # --------------------------------
+
     rehab_matrix = build_cf_matrix_pct_n_table(
         df_demo=df_demo,
         cf_col="Rehab_Needs_Imputed",
@@ -197,7 +193,8 @@ def Rehab_layout(df):
             1: "1: Moderate (1 task)",
             2: "2: High (2 or more tasks)",
         },
-            title="Complicating Factor: Rehabilitation Type Skilled Task Needs (%, n)",
+        title="Complicating Factor: Rehabilitation Type Skilled Task Needs (%, n)",
+        total_denominator=2499,
     )
 
     util_tables = build_cf_x_utilization_binned_tables_per_question(
@@ -219,11 +216,9 @@ def Rehab_layout(df):
     # -------------------------------
     rehab_order = [0, 1, 2]
     util_figs = {}
-
     for qcode in HC_UTIL_QUESTIONS:
         df_demo = build_gp_visits(df_demo, source_col=qcode, out_col="GP_Visits")
         df_demo = add_visit_bins(df_demo, visits_col="GP_Visits", out_col="GP_Visits_Bin")
-
         meta = HEALTHCARE_UTILIZATION_QUESTIONS.get(qcode, {})
         util_title = meta.get("title", qcode)
 
@@ -231,62 +226,45 @@ def Rehab_layout(df):
             df_demo,
             cf_col="Rehab_Needs_Imputed",
             cf_order=rehab_order,
-            title=f"{qcode}: {util_title} - Cross with Rehabilitation Type Skilled Task Needs (Imputed: 999→0)",
-        )
-
-        # FIX LEGEND TITLE HERE
-        fig_util.update_layout(
-            legend_title_text=util_title
-        )
-
+            title=f"{qcode}: {util_title} - Cross with Rehabilitation Type Skilled Task Needs (Imputed: 999→0)")
+        fig_util.update_layout(legend_title_text=util_title)
         util_figs[qcode] = fig_util
-
 
     # -------------------------------
     # CF distribution across demographics (IMPUTED)
     # -------------------------------
-    age_order = ["<40", "40–65", "65–85", ">=85"]
-    gender_order = ["Male", "Female"]
-    eth_order = ["Chinese", "Malay", "Indian", "Others"]
-
-    age_counts, age_fig = cf_distribution_rowwise_by_group(
+    age_counts, age_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
-        cf_col="Rehab_CF_Value",
+        cf_col="Rehab_Needs_Imputed",
         group_col="Age_Bin",
-        group_order=age_order,
         cf_order=[0, 1, 2],
-        title="Rehabilitation Needs: Distribution by Age Bin (Imputed: 999→0)",
-        legend_title="Age Bin",
-    )
+        group_order=["<40", "40–65", "65–85", ">=85"],
+        title="Rehab Needs: CF distribution within each Age Bin",
+        legend_title="CF Category")
 
-    gender_counts, gender_fig = cf_distribution_rowwise_by_group(
+    gender_counts, gender_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
-        cf_col="Rehab_CF_Value",
+        cf_col="Rehab_Needs_Imputed",
         group_col="Gender_Label",
         cf_order=[0, 1, 2],
-        group_order=gender_order,
-        title="Rehabilitation Needs: Distribution by Gender (Imputed: 999→0)",
-        legend_title="Gender",
-    )
+        group_order=["Male", "Female"],
+        title="Rehab Needs: CF distribution within each Gender group",
+        legend_title="CF Category")
 
-    eth_counts, eth_fig = cf_distribution_rowwise_by_group(
+    eth_counts, eth_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
-        cf_col="Rehab_CF_Value",
+        cf_col="Rehab_Needs_Imputed",
         group_col="Ethnicity_Label",
         cf_order=[0, 1, 2],
-        group_order=eth_order,
-        title="Rehabilitation Needs: Distribution by Ethnicity (Imputed: 999→0)",
-        legend_title="Ethnicity",
-    )
-
-    mapping_table = build_mapping_table(mapping_rows, title="CF C - Rehabilitation Type Skilled Task Needs")
+        group_order=["Chinese", "Malay", "Indian", "Others"],
+        title="Rehab Needs: CF distribution within each Ethnicity group",
+        legend_title="CF Category")
 
     return html.Div([
         mapping_table,
         html.Br(),
         table,
         html.Br(),
-        #cards,
         html.Br(),
         html.Hr(),
         html.H4("Distribution of # of Categories - Rehabilitation Type Skilled Task Needs"),
@@ -328,102 +306,57 @@ def Rehab_layout(df):
             "border": "1px solid rgba(0,0,0,0.06)",
             "backgroundColor": "white",
             "padding": "6px",
-        },
-    ),
-    html.Br(),
-
-    dbc.Card(
-        dbc.CardBody(
-            dcc.Graph(figure=gender_fig, config={"displayModeBar": False})
+            },
         ),
-        style={
-            "borderRadius": "16px",
-            "boxShadow": "0 6px 18px rgba(0,0,0,0.08)",
-            "border": "1px solid rgba(0,0,0,0.06)",
-            "backgroundColor": "white",
-            "padding": "6px",
-        },
-    ),
-    html.Br(),
-
-    dbc.Card(
-        dbc.CardBody(
-            dcc.Graph(figure=eth_fig, config={"displayModeBar": False})
-        ),
-        style={
-            "borderRadius": "16px",
-            "boxShadow": "0 6px 18px rgba(0,0,0,0.08)",
-            "border": "1px solid rgba(0,0,0,0.06)",
-            "backgroundColor": "white",
-            "padding": "6px",
-        },
-    ),
-
         html.Br(),
-
+        dbc.Card(
+            dbc.CardBody(dcc.Graph(figure=gender_fig, config={"displayModeBar": False})),
+            style={
+                "borderRadius": "16px",
+                "boxShadow": "0 6px 18px rgba(0,0,0,0.08)",
+                "border": "1px solid rgba(0,0,0,0.06)",
+                "backgroundColor": "white",
+                "padding": "6px",
+            },
+        ),
+        html.Br(),
+        dbc.Card(
+            dbc.CardBody(
+                dcc.Graph(figure=eth_fig, config={"displayModeBar": False})
+            ),
+            style={
+                "borderRadius": "16px",
+                "boxShadow": "0 6px 18px rgba(0,0,0,0.08)",
+                "border": "1px solid rgba(0,0,0,0.06)",
+                "backgroundColor": "white",
+                "padding": "6px",
+            },
+        ),
+        html.Br(),
         html.Hr(),
         html.H3("Distribution of # of CFs by Utilization (Rehab Needs)"),
         html.Hr(),
         dbc.Row(
             [
-                dbc.Col(
-                    chart_card(
-                        util_figs["Q78"],
-                        title="Q78 – Private General Practitioner (GP)",
-                    ),
-                    md=6,
-                ),
-                dbc.Col(
-                    chart_card(
-                        util_figs["Q85"],
-                        title="Q85 – Polyclinic doctor visits",
-                    ),
-                    md=6,
-                ),
+                dbc.Col(chart_card(util_figs["Q78"], title="Q78 – Private General Practitioner (GP)"), md=6),
+                dbc.Col(chart_card(util_figs["Q85"], title="Q85 – Polyclinic doctor visits"), md=6),
             ],
             className="mb-4",
         ),
 
         dbc.Row(
             [
-                dbc.Col(
-                    chart_card(
-                        util_figs["Q91"],
-                        title="Q91 – Specialist Outpatient Clinic (SOC) visits",
-                    ),
-                    md=6,
-                ),
-                dbc.Col(
-                    chart_card(
-                        util_figs["Q93"],
-                        title="Q93 – Emergency Department (ED) visits",
-                    ),
-                    md=6,
-                ),
+                dbc.Col(chart_card(util_figs["Q91"], title="Q91 – Specialist Outpatient Clinic (SOC) visits"), md=6),
+                dbc.Col(chart_card(util_figs["Q93"], title="Q93 – Emergency Department (ED) visits"), md=6),
             ],
             className="mb-4",
         ),
 
         dbc.Row(
             [
-                dbc.Col(
-                    chart_card(
-                        util_figs["Q96"],
-                        title="Q96 – Public Hospital Admissions",
-                    ),
-                    md=6,
-                ),
-                dbc.Col(
-                    chart_card(
-                        util_figs["Q103"],
-                        title="Q103 – Private hospital admissions",
-                    ),
-                    md=6,
-                ),
+                dbc.Col(chart_card(util_figs["Q96"], title="Q96 – Public Hospital Admissions"), md=6),
+                dbc.Col(chart_card(util_figs["Q103"], title="Q103 – Private hospital admissions"), md=6),
             ],
+            className="mb-4",
         ),
-        #html.H4("Distribution Chart"),
-        #dcc.Graph(figure=fig),
-        html.Br(),
-
     ])

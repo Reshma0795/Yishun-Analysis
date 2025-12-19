@@ -8,7 +8,7 @@ from logic.mapping_helpers import build_mapping_table
 import dash_bootstrap_components as dbc
 
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_group_cf_on_y
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.cf_matrix_tables import build_cf_matrix_pct_n_table
 from logic.ui_helpers import chart_card
@@ -163,33 +163,33 @@ def Hospital_layout(df):
     gender_order = ["Male", "Female"]
     eth_order = ["Chinese", "Malay", "Indian", "Others"]
 
-    age_counts, age_fig = cf_distribution_rowwise_by_group(
+    age_counts, age_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Hospital_CF_Value",
         group_col="Age_Bin",
         group_order=age_order,
         cf_order=[0, 1, 2],
-        title="Hospital Admissions (CF H): Distribution by Age Bin (0/1/2)",
+        title="Hospital Admissions (CF H): CF distribution within each Age bin",
         legend_title="Age Bin",
     )
 
-    gender_counts, gender_fig = cf_distribution_rowwise_by_group(
+    gender_counts, gender_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Hospital_CF_Value",
         group_col="Gender_Label",
         group_order=gender_order,
         cf_order=[0, 1, 2],
-        title="Hospital Admissions (CF H): Distribution by Gender (0/1/2)",
+        title="Hospital Admissions (CF H): CF distribution within each Gender group (0/1/2)",
         legend_title="Gender",
     )
 
-    eth_counts, eth_fig = cf_distribution_rowwise_by_group(
+    eth_counts, eth_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Hospital_CF_Value",
         group_col="Ethnicity_Label",
         group_order=eth_order,
         cf_order=[0, 1, 2],
-        title="Hospital Admissions (CF H): Distribution by Ethnicity (0/1/2)",
+        title="Hospital Admissions (CF H): CF distribution within each Ethnicity group (0/1/2)",
         legend_title="Ethnicity",
     )
 
@@ -250,10 +250,6 @@ def Hospital_layout(df):
             style_table={"borderRadius": "12px", "overflow": "hidden"},
         ),
         html.Br(),
-
-        # Optional chart
-        # dcc.Graph(figure=q96_vc_fig),
-        # html.Br(),
         html.Hr(),
         dash_table.DataTable(
             data=count_table.to_dict("records"),
@@ -262,8 +258,6 @@ def Hospital_layout(df):
             style_header={"fontWeight": "bold"},
         ),
         html.Br(),
-        #html.H4("Distribution Chart"),
-        #dcc.Graph(figure=fig),
         html.Hr(),
         hospital_admissions_matrix,
         html.Br(),

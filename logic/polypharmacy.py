@@ -8,7 +8,7 @@ from logic.mapping_helpers import build_mapping_table
 from logic.value_counts_helpers import build_value_counts_table
 
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_group_cf_on_y
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.cf_matrix_tables import build_cf_matrix_pct_n_table
 from logic.utilization import build_cf_x_utilization_binned_tables_per_question
@@ -32,28 +32,14 @@ def compute_polypharmacy_category(row):
         If Q132 in {777,999} or missing → None (not scored)
     """
     val = row[POLY_COL]
-
-    if pd.isna(val):
-        return None
-
-    try:
-        v = int(val)
-    except (TypeError, ValueError):
-        return None
-
-    if v in (777, 999):
-        return None
-
-    if v < 5:
-        return 0
-    elif 5 <= v <= 8:
-        return 1
-    elif v >= 9:
-        return 2
-
-    # fallback
+    if pd.isna(val): return None
+    try: v = int(val)
+    except (TypeError, ValueError): return None
+    if v in (777, 999): return None
+    if v < 5: return 0
+    elif 5 <= v <= 8: return 1
+    elif v >= 9: return 2
     return None
-
 
 # --------------------------------------------
 # Add column to dataframe
@@ -69,14 +55,10 @@ def add_polypharmacy_column_imputed(df):
     Then recomputes Polypharmacy_CF using the SAME logic.
     """
     df_imp = df.copy()
-
     if POLY_COL in df_imp.columns:
         df_imp[POLY_COL] = pd.to_numeric(df_imp[POLY_COL], errors="coerce")
         df_imp[POLY_COL] = df_imp[POLY_COL].replace({777: 0, 999: 0})
-
-    df_imp["Polypharmacy_CF_Imputed"] = df_imp.apply(
-        compute_polypharmacy_category, axis=1
-    )
+    df_imp["Polypharmacy_CF_Imputed"] = df_imp.apply(compute_polypharmacy_category, axis=1)
     return df_imp
 
 # --------------------------------------------
@@ -84,7 +66,6 @@ def add_polypharmacy_column_imputed(df):
 # --------------------------------------------
 def Polypharmacy_layout(df):
 
-    # ensure CF exists
     df = add_polypharmacy_column(df)
 
     # -----------------------
@@ -149,8 +130,7 @@ def Polypharmacy_layout(df):
     # -----------------------
     # Category counts (0/1/2)
     # -----------------------
-    # WITHOUT IMPUTATION
-    # -----------------------
+
     count_table = pd.DataFrame({
         "Category": [0, 1, 2],
         "Meaning": [
@@ -184,12 +164,10 @@ def Polypharmacy_layout(df):
         ]
     })
 
-
     # -----------------------
     # Demographics + CF distribution (0/1/2)
     # -----------------------
     df_demo = add_age_bins(df_imp, age_col="Q2", out_col="Age_Bin")
-
     df_demo = add_categorical_labels(
         df_demo,
         mappings={
@@ -205,12 +183,11 @@ def Polypharmacy_layout(df):
         allowed_values={0, 1, 2},
     )
 
-
     age_order = ["<40", "40–65", "65–85", ">=85"]
     gender_order = ["Male", "Female"]
     eth_order = ["Chinese", "Malay", "Indian", "Others"]
 
-    age_counts, age_fig = cf_distribution_rowwise_by_group(
+    age_counts, age_fig = cf_distribution_group_cf_on_y(
     df_demo=df_demo,
     cf_col="Polypharmacy_CF_Value",
     group_col="Age_Bin",
@@ -220,23 +197,23 @@ def Polypharmacy_layout(df):
     legend_title="Age Bin",
     )
 
-    gender_counts, gender_fig = cf_distribution_rowwise_by_group(
+    gender_counts, gender_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Polypharmacy_CF_Value",
         group_col="Gender_Label",
         cf_order=[0, 1, 2],
         group_order=["Male", "Female"],
-        title="Polypharmacy (Imputed): Distribution by Gender",
+        title="Polypharmacy (Imputed): CF distribution within each Gender group",
         legend_title="Gender",
     )
 
-    eth_counts, eth_fig = cf_distribution_rowwise_by_group(
+    eth_counts, eth_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Polypharmacy_CF_Value",
         group_col="Ethnicity_Label",
         cf_order=[0, 1, 2],
         group_order=["Chinese", "Malay", "Indian", "Others"],
-        title="Polypharmacy (Imputed): Distribution by Ethnicity",
+        title="Polypharmacy (Imputed): CF distribution within each Ethnicity group",
         legend_title="Ethnicity",
     )
 
@@ -284,7 +261,6 @@ def Polypharmacy_layout(df):
         )
 
         util_figs[qcode] = fig_util
-
 
     # -----------------------
     # Layout

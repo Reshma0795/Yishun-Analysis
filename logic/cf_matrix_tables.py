@@ -15,16 +15,28 @@ def build_cf_matrix_row_pct_n_table(
     age_levels: Optional[List[str]] = None,
     gender_levels: Optional[List[str]] = None,
     eth_levels: Optional[List[str]] = None,
-    title: str = "Complicating Factor (Row-wise %, n)",
+    title: str = "Complicating Factor (%, n)",
     pct_decimals: int = 1,
-    total_denominator: Optional[int] = None,  # ✅ NEW: if None, auto-compute
+    total_denominator: Optional[int] = None,  # kept for signature, not used now
 ):
     """
-    - Subgroup cells (Age/Gender/Ethnicity): ROW-wise %
-        pct = subgroup_n / (total in that CF category) * 100
+    Table layout:
 
-    - Total column: % of OVERALL sample (e.g., /2499)
-        pct_total = (total in that CF category) / total_denominator * 100
+      - Rows: CF categories (0/1/2)
+      - Columns:
+          * Age groups (each with N in header)
+          * Gender groups (each with N in header)
+          * Ethnicity groups (each with N in header)
+
+      Cell logic for any subgroup G (e.g. AgeBin = "<40"):
+
+          Percent(CF = k | G) =
+              (# respondents in group G with CF = k)
+              / (total # respondents in group G) * 100
+
+      So each column is *column-wise normalised* by total people in that bin.
+
+      NOTE: The previous "Total (N=...)" column is removed.
     """
 
     if age_levels is None:
@@ -34,12 +46,35 @@ def build_cf_matrix_row_pct_n_table(
     if eth_levels is None:
         eth_levels = ["Chinese", "Malay", "Indian", "Others"]
 
-    # ✅ Overall denominator for the Total column
-    if total_denominator is None:
-        # only rows that belong to these CF categories
-        total_denominator = int(df_demo[cf_col].isin(category_order).sum())
+    # ---------- GROUP TOTALS (denominators for column-wise %) ----------
+    # Age totals: everyone in that age bin, regardless of CF
+    age_totals = (
+        df_demo[df_demo[age_col].isin(age_levels)]
+        .groupby(age_col)
+        .size()
+        .reindex(age_levels, fill_value=0)
+        .to_dict()
+    )
 
-    # Styles
+    # Gender totals
+    gender_totals = (
+        df_demo[df_demo[gender_col].isin(gender_levels)]
+        .groupby(gender_col)
+        .size()
+        .reindex(gender_levels, fill_value=0)
+        .to_dict()
+    )
+
+    # Ethnicity totals
+    eth_totals = (
+        df_demo[df_demo[eth_col].isin(eth_levels)]
+        .groupby(eth_col)
+        .size()
+        .reindex(eth_levels, fill_value=0)
+        .to_dict()
+    )
+
+    # ---------- Styles ----------
     th_style = {
         "border": "1px solid #000",
         "padding": "8px",
@@ -68,84 +103,83 @@ def build_cf_matrix_row_pct_n_table(
     }
 
     def td_pct_n(n: int, denom: int):
-        if denom <= 0:
+        """Cell with percent (column-wise) and n."""
+        if denom is None or denom <= 0:
             return html.Td("—", style=td_center)
         pct = (n / denom) * 100
         return html.Td(
             [
                 html.Div(
                     f"{pct:.{pct_decimals}f}%",
-                    style={"fontWeight": "600", "fontSize": "14px", "marginBottom": "6px"},
+                    style={
+                        "fontWeight": "600",
+                        "fontSize": "14px",
+                        "marginBottom": "6px",
+                    },
                 ),
                 html.Div(f"(n={n})", style={"fontSize": "11px", "color": "#666"}),
             ],
             style=td_center,
         )
 
-    # Header
+    # ---------- Header ----------
     thead = html.Thead(
         [
+            # Row 1: big group headers
             html.Tr(
                 [
                     html.Th("Category", style=th_left),
-                    html.Th("Total (N=2499)", style=th_style),
                     html.Th("Age Group (years)", colSpan=len(age_levels), style=th_style),
                     html.Th("Gender", colSpan=len(gender_levels), style=th_style),
                     html.Th("Ethnicity", colSpan=len(eth_levels), style=th_style),
                 ]
             ),
+            # Row 2: bins with N per bin
             html.Tr(
                 [
                     html.Th("", style=th_left),
-                    html.Th("", style=th_style),
-                    *[html.Th(a, style=th_style) for a in age_levels],
-                    *[html.Th(g, style=th_style) for g in gender_levels],
-                    *[html.Th(e, style=th_style) for e in eth_levels],
+                    *[
+                        html.Th(f"{a} (N={age_totals.get(a, 0)})", style=th_style)
+                        for a in age_levels
+                    ],
+                    *[
+                        html.Th(f"{g} (N={gender_totals.get(g, 0)})", style=th_style)
+                        for g in gender_levels
+                    ],
+                    *[
+                        html.Th(f"{e} (N={eth_totals.get(e, 0)})", style=th_style)
+                        for e in eth_levels
+                    ],
                 ]
             ),
         ]
     )
 
+    # ---------- Body ----------
     body_rows = []
 
     for cat in category_order:
         cat_mask = df_demo[cf_col].eq(cat)
-        denom_row = int(cat_mask.sum())  # ✅ CF category total (row denominator)
 
         row_cells = [html.Td(category_labels.get(cat, str(cat)), style=td_left)]
 
-        # ✅ Total column: % of overall denominator (e.g., /2499)
-        if denom_row > 0 and total_denominator > 0:
-            pct_total = (denom_row / total_denominator) * 100
-            row_cells.append(
-                html.Td(
-                    [
-                        html.Div(
-                            f"{pct_total:.{pct_decimals}f}%",
-                            style={"fontWeight": "600", "fontSize": "14px", "marginBottom": "6px"},
-                        ),
-                        html.Div(f"(n={denom_row})", style={"fontSize": "11px", "color": "#666"}),
-                    ],
-                    style=td_center,
-                )
-            )
-        else:
-            row_cells.append(html.Td("—", style=td_center))
-
-        # Age columns: row-wise %
+        # Age columns: column-wise %
         for a in age_levels:
             n = int((cat_mask & (df_demo[age_col] == a)).sum())
-            row_cells.append(td_pct_n(n, denom_row))
+            denom_age = age_totals.get(a, 0)
+            row_cells.append(td_pct_n(n, denom_age))
 
-        # Gender columns: row-wise %
+        # Gender columns: column-wise %
         for g in gender_levels:
             n = int((cat_mask & (df_demo[gender_col] == g)).sum())
-            row_cells.append(td_pct_n(n, denom_row))
+            denom_gender = gender_totals.get(g, 0)
+            row_cells.append(td_pct_n(n, denom_gender))
 
-        # Ethnicity columns: row-wise %
+        # Ethnicity columns: column-wise %
         for e in eth_levels:
             n = int((cat_mask & (df_demo[eth_col] == e)).sum())
-            row_cells.append(td_pct_n(n, denom_row))
+            denom_eth = eth_totals.get(e, 0)
+            row_cells.append(td_pct_n(n, denom_eth))
 
         body_rows.append(html.Tr(row_cells))
 
@@ -174,6 +208,7 @@ def build_cf_matrix_row_pct_n_table(
             ),
         ]
     )
+
 
 # Backward-compatible alias
 build_cf_matrix_pct_n_table = build_cf_matrix_row_pct_n_table

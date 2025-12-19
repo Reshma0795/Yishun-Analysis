@@ -4,13 +4,11 @@ import plotly.express as px
 from logic.mapping_helpers import build_mapping_table
 from logic.nursing_helper import  (nursing_question_group_table, nursing_response_cards)
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_group_cf_on_y
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.question_texts import HEALTHCARE_UTILIZATION_QUESTIONS
 import dash_bootstrap_components as dbc
 from logic.cf_matrix_tables import build_cf_matrix_row_pct_n_table
-from logic.cf_utilization_crosstab_tables import build_cf_x_utilization_crosstab_table
-from logic.cf_utilization_tables import build_cf_x_utilization_binned_table
 from logic.utilization import build_cf_x_utilization_binned_tables_per_question
 from logic.ui_helpers import chart_card
 # --------------------------------------------
@@ -218,37 +216,6 @@ def Nursing_layout(df):
         total_denominator=2499,  # ✅ THIS is the key
     )
 
-
-    util_crosstab = build_cf_x_utilization_crosstab_table(
-    df_demo=df_demo,
-    cf_col="Nursing_Needs_Imputed",
-    category_order=[0, 1, 2],
-    category_labels={
-        0: "0: None",
-        1: "1: Moderate (1 task)",
-        2: "2: High (2 or more tasks)",
-    },
-    util_qcodes=["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"],
-    util_question_meta=HEALTHCARE_UTILIZATION_QUESTIONS,
-    title="CF B (Nursing Needs) × Healthcare Utilization (counts)",
-    mode="valid",   # or "ge1"
-    )
-
-    util_binned_table = build_cf_x_utilization_binned_table(
-        df_demo=df_demo,
-        cf_col="Nursing_Needs_Imputed",
-        category_order=[0, 1, 2],
-        category_labels={
-            0: "0: None",
-            1: "1: Moderate (1 task)",
-            2: "2: High (2 or more tasks)",
-        },
-        util_qcodes=["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"],
-        util_question_meta=HEALTHCARE_UTILIZATION_QUESTIONS,
-        title="CF B (Nursing Needs) × Healthcare Utilization (0 / 1–2 / 3–5 / 6+)",
-        show_pct=True,   # set False if you only want counts
-    )
-
     util_tables = build_cf_x_utilization_binned_tables_per_question(
         df_demo=df_demo,
         cf_col="Nursing_Needs_Imputed",
@@ -290,38 +257,39 @@ def Nursing_layout(df):
         util_figs[qcode] = fig_util
 
     # -------------------------------
-    # CF distribution across demographics (IMPUTED)
+    # CF distribution by demographics
+    #   y-axis: [Age/Gender/Ethnicity] + CF (0/1/2)
+    #   x-axis: Percent (%) with labels "% (n=)"
     # -------------------------------
-    age_counts, age_fig = cf_distribution_rowwise_by_group(
+    age_counts, age_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Nursing_Needs_Imputed",
         group_col="Age_Bin",
         cf_order=[0, 1, 2],
         group_order=["<40", "40–65", "65–85", ">=85"],
-        title="Nursing Needs: Age distribution within each CF level (row-wise %, n)",
-        legend_title="Age Bin",
+        title="Nursing Needs: CF distribution within each Age Bin",
+        legend_title="CF Category",
     )
 
-    gender_counts, gender_fig = cf_distribution_rowwise_by_group(
+    gender_counts, gender_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Nursing_Needs_Imputed",
         group_col="Gender_Label",
         cf_order=[0, 1, 2],
         group_order=["Male", "Female"],
-        title="Nursing Needs: Gender distribution within each CF level (row-wise %, n)",
-        legend_title="Gender",
+        title="Nursing Needs: CF distribution within each Gender group",
+        legend_title="CF Category",
     )
 
-    eth_counts, eth_fig = cf_distribution_rowwise_by_group(
+    eth_counts, eth_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Nursing_Needs_Imputed",
         group_col="Ethnicity_Label",
         cf_order=[0, 1, 2],
         group_order=["Chinese", "Malay", "Indian", "Others"],
-        title="Nursing Needs: Ethnicity distribution within each CF level (row-wise %, n)",
-        legend_title="Ethnicity",
+        title="Nursing Needs: CF distribution within each Ethnicity group",
+        legend_title="CF Category",
     )
-
 
 
     return html.Div([

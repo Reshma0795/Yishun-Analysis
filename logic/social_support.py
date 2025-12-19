@@ -2,17 +2,16 @@ import pandas as pd
 from dash import html, dcc, dash_table
 import plotly.express as px
 import dash_bootstrap_components as dbc
-
 from logic.mapping_helpers import build_mapping_table
 from logic.social_support_helper import binary_question_group_table
-
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_group_cf_on_y
 from logic.utilization import build_cf_x_utilization_binned_tables_per_question
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.question_texts import HEALTHCARE_UTILIZATION_QUESTIONS
 from logic.cf_matrix_tables import build_cf_matrix_pct_n_table
 from logic.ui_helpers import chart_card
+
 # --------------------------------------------
 # Columns for Lubben social network items
 # --------------------------------------------
@@ -87,8 +86,8 @@ def SocialSupport_layout(df):
         "Category": [0, 1, 2],
         "Meaning": [
             "0 = has support for both basic healthcare services and companionship",
-            "1 = no support for either basic healthcare services or companionship",
-            "2 = dysfunctional social circumstance"
+            "1 = no support for either basic healthcare services but companionship",
+            "2 = has no support"
         ],
         "Count": [
             df["Social_Support_CF"].eq(0).sum(),
@@ -97,7 +96,6 @@ def SocialSupport_layout(df):
         ]
     })
 
-    # (Optional chart – you already had it)
     fig = px.bar(
         count_table,
         x="Meaning",
@@ -165,7 +163,7 @@ def SocialSupport_layout(df):
             "Q197 – Friends to talk private matters",
             "Q198 – Friends you can call for help",
         ],
-        # IMPORTANT: dataset codes are 1..6 (where 1 means “0”, 2 means “1”, etc.)
+
         code_0=1,
         code_1=2,
         code_2=3,
@@ -201,33 +199,33 @@ def SocialSupport_layout(df):
     gender_order = ["Male", "Female"]
     eth_order = ["Chinese", "Malay", "Indian", "Others"]
 
-    age_counts, age_fig = cf_distribution_rowwise_by_group(
+    age_counts, age_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="SocialSupport_CF_Value",
         group_col="Age_Bin",
         group_order=age_order,
         cf_order=[0, 1, 2],
-        title="Social Support: Distribution by Age Bin (0/1/2)",
+        title="Social Support: CF distribution within each Age bin",
         legend_title="Age Bin",
     )
 
-    gender_counts, gender_fig = cf_distribution_rowwise_by_group(
+    gender_counts, gender_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="SocialSupport_CF_Value",
         group_col="Gender_Label",
         group_order=gender_order,
         cf_order=[0, 1, 2],
-        title="Social Support: Distribution by Gender (0/1/2)",
+        title="Social Support: CF distribution within each Gender group (0/1/2)",
         legend_title="Gender",
     )
 
-    eth_counts, eth_fig = cf_distribution_rowwise_by_group(
+    eth_counts, eth_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="SocialSupport_CF_Value",
         group_col="Ethnicity_Label",
         group_order=eth_order,
         cf_order=[0, 1, 2],
-        title="Social Support: Distribution by Ethnicity (0/1/2)",
+        title="Social Support: CF distribution within each Ethnicity group (0/1/2)",
         legend_title="Ethnicity",
     )
 
@@ -238,7 +236,7 @@ def SocialSupport_layout(df):
         category_labels={
             0: "0: has support for both basic healthcare services and companionship",
             1: "1: has no support for basic healthcare but companionship",
-            2: "2: has no support for both basic healthcare services and companionship",
+            2: "2: has no support",
         },
             title="Complicating Factor: Social Support in Case of Need   (%, n)",
     )
@@ -268,7 +266,7 @@ def SocialSupport_layout(df):
         category_labels={
             0: "0: has support for both basic healthcare services and companionship",
             1: "1: has no support for basic healthcare but companionship",
-            2: "2: has no support for both basic healthcare services and companionship",
+            2: "2: has no support",
         },
         util_qcodes=["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"],
         util_question_meta=HEALTHCARE_UTILIZATION_QUESTIONS,

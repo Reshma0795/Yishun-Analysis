@@ -6,7 +6,7 @@ from logic.functional_assessment import HC_UTIL_QUESTIONS
 from logic.mapping_helpers import build_mapping_table
 from logic.disruptive_helper import disruptive_value_counts_table
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
-from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_rowwise_by_group
+from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_group_cf_on_y
 from logic.utilization import build_cf_x_utilization_binned_tables_per_question
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.question_texts import HEALTHCARE_UTILIZATION_QUESTIONS
@@ -189,33 +189,33 @@ def Disruptive_layout(df):
     gender_order = ["Male", "Female"]
     eth_order = ["Chinese", "Malay", "Indian", "Others"]
 
-    age_counts, age_fig = cf_distribution_rowwise_by_group(
+    age_counts, age_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Disruptive_CF_Value",
         group_col="Age_Bin",
         cf_order=[0, 1, 2],
         group_order=age_order,
-        title="Disruptive Behaviour: Distribution by Age Bin",
+        title="Disruptive Behaviour: CF distribution within each Age bin",
         legend_title="Age Bin",
     )
 
-    gender_counts, gender_fig = cf_distribution_rowwise_by_group(
+    gender_counts, gender_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Disruptive_CF_Value",
         group_col="Gender_Label",
         cf_order=[0, 1, 2],
         group_order=gender_order,
-        title="Disruptive Behaviour: Distribution by Gender",
+        title="Disruptive Behaviour: CF distribution within each Gender group",
         legend_title="Gender",
     )
 
-    eth_counts, eth_fig = cf_distribution_rowwise_by_group(
+    eth_counts, eth_fig = cf_distribution_group_cf_on_y(
         df_demo=df_demo,
         cf_col="Disruptive_CF_Value",
         group_col="Ethnicity_Label",
         cf_order=[0, 1, 2],
         group_order=eth_order,
-        title="Disruptive Behaviour: Distribution by Ethnicity",
+        title="Disruptive Behaviour: CF distribution within each Ethnicity group",
         legend_title="Ethnicity",
     )
 
@@ -228,7 +228,8 @@ def Disruptive_layout(df):
             1: "1: 1 or more, not significantly affecting care",
             2: "2: 1 or more, significantly affecting care",
         },
-            title="Complicating Factor: Disruptive Behavioural Issues (%, n)",
+        title="Complicating Factor: Disruptive Behavioural Issues (%, n)",
+        total_denominator=2499,
     )
     util_tables = build_cf_x_utilization_binned_tables_per_question(
         df_demo=df_demo,
