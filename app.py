@@ -276,13 +276,13 @@ sidebar = html.Div(
                 ),
                 html.Hr(style={"borderColor": "#645F9D"}),
 
-                dbc.NavLink(
-                    "GI vs Complicating Factors",
-                    href="/gi-vs-cfs",
-                    id="link-gi-vs-cfs",
-                    style=NAV_LINK_STYLE,
-                    active="exact",
-                ),
+                #dbc.NavLink(
+                    #"GI vs Complicating Factors",
+                    #href="/gi-vs-cfs",
+                    #id="link-gi-vs-cfs",
+                    #style=NAV_LINK_STYLE,
+                    #active="exact",
+                #),
                 
             ],
             vertical=True,
