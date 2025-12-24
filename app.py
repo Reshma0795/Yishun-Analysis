@@ -8,13 +8,13 @@ import pandas as pd  # <-- needed to load your dataset
 from dash import Dash
 import os
 from logic.functional_assessment import add_FA_column, FA_layout
-from logic.nursing_needs import add_nursing_column, Nursing_layout
-from logic.rehab_needs import add_rehab_column, Rehab_layout
+from logic.nursing_needs import ensure_nursing_cf_columns, Nursing_layout
+from logic.rehab_needs import ensure_rehab_cf_columns, Rehab_layout
 from logic.activation_own_care import add_activation_column, Activation_layout
 from logic.disruptive_behavior import add_disruptive_column, Disruptive_layout
 from logic.social_support import add_social_support_column, SocialSupport_layout
 from logic.hospital_admissions import add_hospital_column, Hospital_layout
-from logic.polypharmacy import add_polypharmacy_column, Polypharmacy_layout
+from logic.polypharmacy import ensure_polypharmacy_cf_columns, Polypharmacy_layout
 from logic.global_impressions import GI_I_layout, GI_II_layout, GI_III_layout, GI_IV_layout, GI_V_layout
 from logic.financial_challenges import add_financial_challenges_column, FinancialChallenges_layout
 from logic.specialist_medical_service_needs import add_specialist_medical_service_needs_column, SpecialistMedicalServiceNeeds_layout
@@ -30,13 +30,13 @@ from logic.for_just_global_impressions import GI_unique_summary_layout, GI_stepw
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 df = pd.read_excel(os.path.join(BASE_DIR, "data", "Yishun_Dataset.xlsx"), sheet_name="Yishun_Dataset")
 df = add_FA_column(df)  # this will add the Functional_Assessment column
-df = add_nursing_column(df)
-df = add_rehab_column(df)
+df = ensure_nursing_cf_columns(df)
+df = ensure_rehab_cf_columns(df)
 df = add_activation_column(df)
 df = add_disruptive_column(df)
 df = add_social_support_column(df)
 df = add_hospital_column(df)
-df = add_polypharmacy_column(df)
+df = ensure_polypharmacy_cf_columns(df)
 df = add_financial_challenges_column(df)
 df = add_specialist_medical_service_needs_column(df)
 df = add_non_medical_resource_needs_column(df)
@@ -44,7 +44,9 @@ df = add_organization_of_care_column(df)
 # ------------------------------------------------
 # App setup
 # ------------------------------------------------
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], 
+        external_scripts=["https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+    ],)
 server = app.server
 app.title = "Yishun Dashboard"
 
@@ -310,17 +312,7 @@ app.layout = html.Div([
 )
 def render_page(pathname):
 
-    if pathname == "/" or pathname is None:
-        return html.Div([
-            html.H2("Overview"),
-            html.P("High-level summary of the Yishun dataset.")
-        ])
-
-    elif pathname == "/gi":
-        return html.Div([
-            html.H2("Global Impressions"),
-            html.P("Insert GI charts/tables here.")
-        ])
+    if pathname == "/" or pathname is None: return ValueCounts_layout(df)
     elif pathname == "/fa": return FA_layout(df)
     elif pathname == "/nursing": return Nursing_layout(df)
     elif pathname == "/rehab": return Rehab_layout(df)

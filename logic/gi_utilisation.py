@@ -4,8 +4,8 @@ import plotly.express as px
 from logic.global_impressions import gi_iv_flag  # your existing GI IV helper
 from logic.global_impressions import assign_gi_label
 
-UTIL_QS = ["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"]
 
+UTIL_QS = ["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"]
 GI_ORDER = ["GI I", "GI II", "GI III", "GI IV", "Unclassified"]
 BIN_ORDER = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11+"]
 

@@ -90,11 +90,30 @@ def add_nursing_column_imputed(df):
     df_imp["Nursing_Needs_Imputed"] = df_imp.apply(compute_nursing_category, axis=1)
     return df_imp
 
+
+# --------------------------------------------
+# --------------------------------------------
+def ensure_nursing_cf_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ensures BOTH Nursing_Needs (raw) and Nursing_Needs_Imputed (999→0) exist
+    on the SAME dataframe.
+    """
+    # 1) Base CF (no imputation)
+    if "Nursing_Needs" not in df.columns:
+        df = add_nursing_column(df)
+
+    # 2) Imputed CF (999 -> 0, recomputed using same logic)
+    if "Nursing_Needs_Imputed" not in df.columns:
+        df_imp = add_nursing_column_imputed(df)
+        df["Nursing_Needs_Imputed"] = df_imp["Nursing_Needs_Imputed"]
+
+    return df
+
 # --------------------------------------------
 # Layout Page for Dash
 # --------------------------------------------
 def Nursing_layout(df):
-
+    df = ensure_nursing_cf_columns(df)
     table = nursing_question_group_table(
         df,
         cols=Q107_cols,

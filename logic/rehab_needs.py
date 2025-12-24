@@ -76,10 +76,27 @@ def add_rehab_column_imputed(df):
     return df_imp
 
 # --------------------------------------------
+# --------------------------------------------
+def ensure_rehab_cf_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ensures BOTH Rehab_Needs (raw) and Rehab_Needs_Imputed (999→0) exist
+    on the SAME dataframe.
+    """
+    # 1) Base CF (no imputation)
+    if "Rehab_Needs" not in df.columns:
+        df = add_rehab_column(df)
+
+    # 2) Imputed CF (999 -> 0, recomputed using same logic)
+    if "Rehab_Needs_Imputed" not in df.columns:
+        df_imp = add_rehab_column_imputed(df)
+        df["Rehab_Needs_Imputed"] = df_imp["Rehab_Needs_Imputed"]
+
+    return df
+# --------------------------------------------
 # Layout Page for Dash
 # --------------------------------------------
 def Rehab_layout(df):
-
+    df = ensure_rehab_cf_columns(df)
     table = nursing_question_group_table(
         df,
         cols=Q107_rehab_cols,

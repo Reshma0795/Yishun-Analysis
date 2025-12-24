@@ -2,22 +2,23 @@ import pandas as pd
 from dash import html, dcc, dash_table
 import plotly.express as px
 import dash_bootstrap_components as dbc
-
 from logic.question_texts import HEALTHCARE_UTILIZATION_QUESTIONS
 from logic.mapping_helpers import build_mapping_table
+from logic.rehab_needs import ensure_rehab_cf_columns
 from logic.value_counts_helpers import build_value_counts_table
-
 from logic.demographics_helpers import add_age_bins, add_categorical_labels
 from logic.cf_distribution_helpers import build_cf_value_column, cf_distribution_group_cf_on_y
 from logic.utilization_helpers import build_gp_visits, add_visit_bins, gp_visits_by_cf_group
 from logic.cf_matrix_tables import build_cf_matrix_pct_n_table
 from logic.utilization import build_cf_x_utilization_binned_tables_per_question
 from logic.ui_helpers import chart_card
+
 # --------------------------------------------
 # Column name
 # --------------------------------------------
 POLY_COL = "Q132"
 HC_UTIL_QUESTIONS = ["Q78", "Q85", "Q91", "Q93", "Q96", "Q103"]
+
 # --------------------------------------------
 # Compute Polypharmacy CF
 # --------------------------------------------
@@ -48,6 +49,9 @@ def add_polypharmacy_column(df):
     df["Polypharmacy_CF"] = df.apply(compute_polypharmacy_category, axis=1)
     return df
 
+# --------------------------------------------
+# Imputed Column Variant
+# --------------------------------------------
 def add_polypharmacy_column_imputed(df):
     """
     Creates an imputed version of Polypharmacy_CF where:
@@ -62,11 +66,29 @@ def add_polypharmacy_column_imputed(df):
     return df_imp
 
 # --------------------------------------------
+# --------------------------------------------
+def ensure_polypharmacy_cf_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ensures BOTH Polypharmacy_CF (raw) and Polypharmacy_CF_Imputed (999→0) exist
+    on the SAME dataframe.
+    """
+    # 1) Base CF (no imputation)
+    if "Polypharmacy_CF" not in df.columns:
+        df = add_polypharmacy_column(df)
+
+    # 2) Imputed CF (999 -> 0, recomputed using same logic)
+    if "Polypharmacy_CF_Imputed" not in df.columns:
+        df_imp = add_polypharmacy_column_imputed(df)
+        df["Polypharmacy_CF_Imputed"] = df_imp["Polypharmacy_CF_Imputed"]
+
+    return df
+
+# --------------------------------------------
 # Layout for Dash page
 # --------------------------------------------
 def Polypharmacy_layout(df):
 
-    df = add_polypharmacy_column(df)
+    df = ensure_polypharmacy_cf_columns(df)
 
     # -----------------------
     # Mapping table
